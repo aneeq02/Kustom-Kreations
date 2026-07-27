@@ -1,0 +1,25 @@
+# Root-level catch-all for the monorepo
+
+# Dependencies
+node_modules/
+
+# Environment files — real credentials must never be committed
+.env
+.env.*
+!.env.example
+!.env.local.example
+
+# Claude Code local settings
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+
+# Logs
+*.log
+logs/
