@@ -180,6 +180,7 @@ CREATE TABLE IF NOT EXISTS orders (
   delivered_at        TIMESTAMPTZ,
   -- Meta
   notes               TEXT,
+  referral_source     TEXT,                      -- 'Instagram', 'Google', etc. (guest only)
   created_at          TIMESTAMPTZ DEFAULT NOW(),
   updated_at          TIMESTAMPTZ DEFAULT NOW()
 );

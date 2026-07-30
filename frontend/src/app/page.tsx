@@ -4,12 +4,23 @@ import Link from 'next/link';
 import { motion, useInView, useScroll, useTransform } from 'framer-motion';
 import { useRef, useState, useEffect } from 'react';
 
+interface MagnetSize {
+  id: string;
+  sizeMm: number;
+  label: string;
+  pricePerMagnet: number;
+  bulkDiscountPct: number;
+  active: boolean;
+}
+
 // ── Animation helpers ──────────────────────────────────────────
+const EASE_OUT: [number, number, number, number] = [0.22, 1, 0.36, 1];
+
 const fadeUp = (delay = 0) => ({
   initial:   { opacity: 0, y: 40 },
   whileInView: { opacity: 1, y: 0 },
   viewport:  { once: true, margin: '-60px' },
-  transition: { duration: 0.65, delay, ease: [0.22, 1, 0.36, 1] },
+  transition: { duration: 0.65, delay, ease: EASE_OUT },
 });
 
 const fadeIn = (delay = 0) => ({
@@ -37,22 +48,6 @@ const HERO_MAGNETS = [
   { bg: 'linear-gradient(135deg,#7DD3FC,#38BDF8)', rot: -3, delay: 0.22 },
   { bg: 'linear-gradient(135deg,#FDE68A,#C4985A)', rot:  2, delay: 0.32 },
   { bg: 'linear-gradient(135deg,#D9F99D,#86EFAC)', rot: -1, delay: 0.42 },
-];
-
-// ── Template category data ─────────────────────────────────────
-const TEMPLATE_CATS = [
-  { icon: '🎂', label: 'Birthday',     color: '#FDE68A' },
-  { icon: '🎄', label: 'Christmas',    color: '#BEF264' },
-  { icon: '❤️', label: "Valentine's",  color: '#FCA5A5' },
-  { icon: '🌸', label: "Mother's Day", color: '#F9A8D4' },
-  { icon: '👔', label: "Father's Day", color: '#93C5FD' },
-  { icon: '💍', label: 'Wedding',      color: '#F5EADA' },
-  { icon: '🎓', label: 'Graduation',   color: '#DDD6FE' },
-  { icon: '🐾', label: 'Pet Lovers',   color: '#FDBA74' },
-  { icon: '👶', label: 'New Baby',     color: '#A5F3FC' },
-  { icon: '🎉', label: 'Celebration',  color: '#FDE68A' },
-  { icon: '🎃', label: 'Halloween',    color: '#FDBA74' },
-  { icon: '🥂', label: 'Anniversary',  color: '#C4985A' },
 ];
 
 // ── Animated counter ───────────────────────────────────────────
@@ -97,6 +92,14 @@ export default function HomePage() {
   const heroY = useTransform(scrollYProgress, [0, 1], ['0%', '20%']);
   const heroOpacity = useTransform(scrollYProgress, [0, 0.6], [1, 0]);
 
+  const [magnetSizes, setMagnetSizes] = useState<MagnetSize[]>([]);
+  useEffect(() => {
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/magnets/config`)
+      .then(r => r.json())
+      .then(d => setMagnetSizes((d.sizes as MagnetSize[]).filter(s => s.active)))
+      .catch(() => {});
+  }, []);
+
   return (
     <div className="flex flex-col overflow-x-hidden">
 
@@ -121,7 +124,7 @@ export default function HomePage() {
             <motion.h1
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.7, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
+              transition={{ duration: 0.7, delay: 0.2, ease: EASE_OUT }}
               className="text-[2.2rem] sm:text-5xl lg:text-6xl xl:text-7xl font-heading font-bold text-white leading-[1.1] mb-5"
             >
               Turn memories into{' '}
@@ -378,48 +381,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ━━━━━━━━━━ TEMPLATE CATEGORIES ━━━━━━━━━━━━━━━━━━━━━━━━ */}
-      <section className="py-28 px-4" style={{ background: '#FAF8F5' }}>
-        <div className="max-w-6xl mx-auto">
-          <motion.div {...fadeUp()} className="text-center mb-14">
-            <p className="text-coral text-sm font-medium uppercase tracking-widest mb-3">Perfect for every occasion</p>
-            <h2 className="text-4xl md:text-5xl font-heading font-bold text-navy mb-4">45+ beautiful templates</h2>
-            <p className="text-text-secondary text-lg max-w-lg mx-auto">
-              Designed for every season, every celebration, every memory worth keeping.
-            </p>
-          </motion.div>
-
-          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3 md:gap-4">
-            {TEMPLATE_CATS.map(({ icon, label, color }, i) => (
-              <motion.div key={label} {...fadeUp(i * 0.04)}>
-                <Link
-                  href="/start"
-                  className="group flex flex-col items-center gap-2 p-4 bg-white rounded-2xl border border-border hover:border-transparent hover:shadow-xl hover:-translate-y-1.5 transition-all duration-300 cursor-pointer"
-                  style={{ '--cat-color': color } as any}
-                >
-                  <div
-                    className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl transition-transform group-hover:scale-110"
-                    style={{ background: color + '50' }}
-                  >
-                    {icon}
-                  </div>
-                  <span className="text-xs font-semibold text-navy text-center leading-tight">{label}</span>
-                </Link>
-              </motion.div>
-            ))}
-          </div>
-
-          <motion.div {...fadeUp(0.2)} className="text-center mt-10">
-            <Link href="/start" className="inline-flex items-center gap-2 text-coral font-semibold hover:gap-3 transition-all">
-              Browse all templates & start designing
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
-              </svg>
-            </Link>
-          </motion.div>
-        </div>
-      </section>
-
       {/* ━━━━━━━━━━ PRICING ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
       <section
         className="py-28 px-4"
@@ -434,36 +395,52 @@ export default function HomePage() {
             </p>
           </motion.div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {[
-              { qty: '1–4',  price: '£2.99', label: 'Standard',    highlight: false },
-              { qty: '5–9',  price: '£2.69', label: 'Save 10%',    highlight: false },
-              { qty: '10–19',price: '£2.54', label: 'Save 15%',    highlight: false },
-              { qty: '20+',  price: '£2.39', label: 'Best value',  highlight: true  },
-            ].map(({ qty, price, label, highlight }, i) => (
-              <motion.div key={qty} {...fadeUp(i * 0.08)}>
-                <div
-                  className={`relative rounded-3xl p-6 text-center border transition-all hover:-translate-y-1 ${
-                    highlight
-                      ? 'border-[#C4985A]/40 bg-[#C4985A]/10'
-                      : 'border-white/10 bg-white/5'
-                  }`}
-                >
-                  {highlight && (
-                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 text-xs font-bold px-3 py-1 rounded-full text-navy"
-                      style={{ background: 'linear-gradient(135deg, #4A7C3F, #6AAD5A)' }}>
-                      Best value
+          <div className={`grid gap-4 ${
+            magnetSizes.length === 1 ? 'grid-cols-1 max-w-xs mx-auto' :
+            magnetSizes.length === 2 ? 'grid-cols-2 max-w-lg mx-auto' :
+            'grid-cols-2 md:grid-cols-3'
+          }`}>
+            {magnetSizes.map((size, i) => {
+              const discountedPrice = size.pricePerMagnet * (1 - size.bulkDiscountPct / 100);
+              const hasBulk = size.bulkDiscountPct > 0;
+              return (
+                <motion.div key={size.id} {...fadeUp(i * 0.08)}>
+                  <div className="relative rounded-3xl p-6 text-center border border-white/10 bg-white/5 transition-all hover:-translate-y-1">
+                    <div className="text-xs font-semibold uppercase tracking-wider mb-3 text-white/40">
+                      {size.label}
                     </div>
-                  )}
-                  <div className={`text-xs font-semibold uppercase tracking-wider mb-3 ${highlight ? 'text-coral' : 'text-white/40'}`}>
-                    {qty} magnets
+                    <div className="text-3xl font-heading font-bold text-white mb-1">
+                      £{size.pricePerMagnet.toFixed(2)}
+                    </div>
+                    <div className="text-xs text-white/40 mb-3">per magnet</div>
+                    {hasBulk && (
+                      <div className="rounded-xl bg-[#C4985A]/10 border border-[#C4985A]/25 px-3 py-2 mt-2">
+                        <div className="text-[10px] text-white/40 mb-0.5">10+ magnets</div>
+                        <div className="text-lg font-heading font-bold text-coral">
+                          £{discountedPrice.toFixed(2)}
+                        </div>
+                        <div className="text-[10px] text-coral/70">save {size.bulkDiscountPct}%</div>
+                      </div>
+                    )}
                   </div>
-                  <div className="text-3xl font-heading font-bold text-white mb-1">{price}</div>
-                  <div className="text-xs text-white/40 mb-3">per magnet</div>
-                  <div className={`text-xs font-semibold ${highlight ? 'text-coral' : 'text-white/50'}`}>{label}</div>
-                </div>
-              </motion.div>
-            ))}
+                </motion.div>
+              );
+            })}
+            {magnetSizes.length === 0 && (
+              [
+                { qty: '1–9',   price: '£2.99', label: 'Standard'    },
+                { qty: '10+',   price: '£2.54', label: 'Bulk saving'  },
+              ].map(({ qty, price, label }, i) => (
+                <motion.div key={qty} {...fadeUp(i * 0.08)}>
+                  <div className="relative rounded-3xl p-6 text-center border border-white/10 bg-white/5 transition-all hover:-translate-y-1">
+                    <div className="text-xs font-semibold uppercase tracking-wider mb-3 text-white/40">{qty} magnets</div>
+                    <div className="text-3xl font-heading font-bold text-white mb-1">{price}</div>
+                    <div className="text-xs text-white/40 mb-3">per magnet</div>
+                    <div className="text-xs font-semibold text-white/50">{label}</div>
+                  </div>
+                </motion.div>
+              ))
+            )}
           </div>
         </div>
       </section>

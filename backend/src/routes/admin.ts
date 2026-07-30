@@ -27,46 +27,51 @@ router.get('/verify', (_req, res) => res.json({ ok: true }));
 // ── Dashboard stats ───────────────────────────────────────────────────────────
 
 router.get('/dashboard', async (_req: Request, res: Response) => {
-  const [ordersRes, revenueRes, customersRes, recentRes, statusRes, todayRes] =
-    await Promise.all([
-      pool.query(
-        `SELECT COUNT(*) AS count FROM orders WHERE status NOT IN ('cancelled')`,
-      ),
-      pool.query(
-        `SELECT COALESCE(SUM(total), 0) AS revenue
-         FROM orders
-         WHERE status NOT IN ('cancelled','refunded') AND currency = 'GBP'`,
-      ),
-      pool.query(`SELECT COUNT(*) AS count FROM customers`),
-      pool.query(
-        `SELECT o.id, o.order_number, o.status, o.total, o.currency,
-                o.shipping_first_name, o.shipping_last_name, o.created_at,
-                COALESCE(c.email, o.guest_email) AS email
-         FROM orders o
-         LEFT JOIN customers c ON c.id = o.customer_id
-         ORDER BY o.created_at DESC
-         LIMIT 8`,
-      ),
-      pool.query(
-        `SELECT status, COUNT(*) AS count FROM orders GROUP BY status ORDER BY count DESC`,
-      ),
-      pool.query(
-        `SELECT COUNT(*) AS count, COALESCE(SUM(total), 0) AS revenue
-         FROM orders
-         WHERE created_at >= NOW() - INTERVAL '24 hours'
-           AND status NOT IN ('cancelled','refunded')`,
-      ),
-    ]);
+  try {
+    const [ordersRes, revenueRes, customersRes, recentRes, statusRes, todayRes] =
+      await Promise.all([
+        pool.query(
+          `SELECT COUNT(*) AS count FROM orders WHERE status NOT IN ('cancelled')`,
+        ),
+        pool.query(
+          `SELECT COALESCE(SUM(total), 0) AS revenue
+           FROM orders
+           WHERE status NOT IN ('cancelled','refunded') AND currency = 'GBP'`,
+        ),
+        pool.query(`SELECT COUNT(*) AS count FROM customers`),
+        pool.query(
+          `SELECT o.id, o.order_number, o.status, o.total, o.currency,
+                  o.shipping_first_name, o.shipping_last_name, o.created_at,
+                  COALESCE(c.email, o.guest_email) AS email
+           FROM orders o
+           LEFT JOIN customers c ON c.id = o.customer_id
+           ORDER BY o.created_at DESC
+           LIMIT 8`,
+        ),
+        pool.query(
+          `SELECT status, COUNT(*) AS count FROM orders GROUP BY status ORDER BY count DESC`,
+        ),
+        pool.query(
+          `SELECT COUNT(*) AS count, COALESCE(SUM(total), 0) AS revenue
+           FROM orders
+           WHERE created_at >= NOW() - INTERVAL '24 hours'
+             AND status NOT IN ('cancelled','refunded')`,
+        ),
+      ]);
 
-  res.json({
-    totalOrders:    parseInt(ordersRes.rows[0].count),
-    revenue:        parseFloat(revenueRes.rows[0].revenue),
-    totalCustomers: parseInt(customersRes.rows[0].count),
-    todayOrders:    parseInt(todayRes.rows[0].count),
-    todayRevenue:   parseFloat(todayRes.rows[0].revenue),
-    recentOrders:   recentRes.rows,
-    statusBreakdown: statusRes.rows,
-  });
+    res.json({
+      totalOrders:     parseInt(ordersRes.rows[0].count),
+      revenue:         parseFloat(revenueRes.rows[0].revenue),
+      totalCustomers:  parseInt(customersRes.rows[0].count),
+      todayOrders:     parseInt(todayRes.rows[0].count),
+      todayRevenue:    parseFloat(todayRes.rows[0].revenue),
+      recentOrders:    recentRes.rows,
+      statusBreakdown: statusRes.rows,
+    });
+  } catch (err) {
+    console.error('Dashboard query failed:', err);
+    res.status(503).json({ error: 'Database unavailable', detail: err instanceof Error ? err.message : String(err) });
+  }
 });
 
 // ── Orders ────────────────────────────────────────────────────────────────────
@@ -106,6 +111,7 @@ router.get('/orders', async (req: Request, res: Response) => {
   const ordersRes = await pool.query(
     `SELECT o.id, o.order_number, o.status, o.total, o.currency,
             o.shipping_first_name, o.shipping_last_name, o.created_at, o.dispatched_at,
+            o.referral_source,
             COALESCE(c.email, o.guest_email) AS email,
             COUNT(oi.id) AS item_count
      FROM orders o
@@ -145,7 +151,8 @@ router.get('/orders/:id', async (req: Request, res: Response) => {
          o.shipping_postcode,
          o.shipping_country,
          o.tracking_number, o.tracking_carrier,
-         o.dispatched_at, o.delivered_at, o.notes, o.created_at,
+         o.dispatched_at, o.delivered_at, o.notes, o.referral_source, o.created_at,
+         (o.customer_id IS NOT NULL) AS is_registered,
          COALESCE(c.email, o.guest_email) AS email,
          c.phone,
          sm.name AS shipping_method_name

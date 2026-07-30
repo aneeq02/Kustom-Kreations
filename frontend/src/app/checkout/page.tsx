@@ -35,6 +35,7 @@ export default function CheckoutPage() {
     line1: '', line2: '', city: '', county: '', postcode: '', country: 'GB',
   });
   const [guestEmail, setGuestEmail] = useState('');
+  const [referralSource, setReferralSource] = useState('');
   const [shippingMethods, setShippingMethods] = useState<ShippingMethod[]>([]);
   const [selectedMethodId, setSelectedMethodId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -112,6 +113,7 @@ export default function CheckoutPage() {
     })),
     currency,
     guestEmail: guestEmail || null,
+    referralSource: customer ? null : (referralSource || null),
     discountCodeId: meta.discountCodeId ?? null,
     voucherId: meta.voucherId ?? null,
   });
@@ -206,14 +208,34 @@ export default function CheckoutPage() {
               {error && <p className="text-red-500 text-sm mb-4 bg-red-50 px-3 py-2 rounded-xl">{error}</p>}
               <form onSubmit={handleAddressSubmit} className="flex flex-col gap-4">
                 {!customer && (
-                  <Input
-                    label="Your email"
-                    type="email"
-                    required
-                    value={guestEmail}
-                    onChange={e => setGuestEmail(e.target.value)}
-                    hint="We'll send your order confirmation here"
-                  />
+                  <>
+                    <Input
+                      label="Your email"
+                      type="email"
+                      required
+                      value={guestEmail}
+                      onChange={e => setGuestEmail(e.target.value)}
+                      hint="We'll send your order confirmation here"
+                    />
+                    <div className="flex flex-col gap-1">
+                      <label className="text-sm font-semibold text-navy">
+                        How did you hear about us?
+                      </label>
+                      <select
+                        value={referralSource}
+                        onChange={e => setReferralSource(e.target.value)}
+                        className="w-full px-4 py-3 rounded-xl border-2 border-coral-light focus:border-coral focus:outline-none bg-white text-navy min-h-[44px]"
+                      >
+                        <option value="">— Select an option —</option>
+                        <option value="Instagram">Instagram</option>
+                        <option value="Facebook">Facebook</option>
+                        <option value="TikTok">TikTok</option>
+                        <option value="Google">Google</option>
+                        <option value="Friend or family">Friend or family</option>
+                        <option value="Other">Other</option>
+                      </select>
+                    </div>
+                  </>
                 )}
                 <div className="grid grid-cols-2 gap-4">
                   <Input label="First name" required value={address.firstName}

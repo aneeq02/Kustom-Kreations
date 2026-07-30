@@ -1,8 +1,8 @@
 # Dependencies
 node_modules/
 
-# Build output
-dist/
+# Build output — dist/ is committed so Hostinger doesn't need to compile TypeScript
+# dist/
 *.tsbuildinfo
 
 # Environment files — never commit real credentials

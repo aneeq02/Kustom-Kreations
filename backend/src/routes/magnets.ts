@@ -98,6 +98,12 @@ async function ensureTables() {
   `);
 }
 
+// Migrate existing databases that predate these columns
+pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS referral_source TEXT`)
+  .catch(() => {});
+pool.query(`ALTER TABLE magnet_sizes ADD COLUMN IF NOT EXISTS bulk_discount_pct NUMERIC(5,2) NOT NULL DEFAULT 15`)
+  .catch(() => {});
+
 ensureTables().catch(err => console.error('Magnet table init error:', err));
 
 /* ── Public: frontend config ─────────────────────────────────────── */
@@ -121,6 +127,7 @@ router.get('/config', async (_req: Request, res: Response) => {
       sizeMm: Number(r.size_mm),
       label: r.label,
       pricePerMagnet: parseFloat(r.price_per_magnet),
+      bulkDiscountPct: parseFloat(r.bulk_discount_pct ?? 0),
       active: r.active,
       sortOrder: Number(r.sort_order),
     })),
@@ -145,10 +152,13 @@ router.get('/config', async (_req: Request, res: Response) => {
 
 /** PUT /api/magnets/sizes/:id */
 router.put('/sizes/:id', async (req: Request, res: Response) => {
-  const { label, pricePerMagnet, active } = req.body;
+  const { label, pricePerMagnet, active, bulkDiscountPct } = req.body;
   await pool.query(
-    'UPDATE magnet_sizes SET label = $1, price_per_magnet = $2, active = $3 WHERE id = $4',
-    [label, pricePerMagnet, active, req.params.id],
+    `UPDATE magnet_sizes
+     SET label = $1, price_per_magnet = $2, active = $3,
+         bulk_discount_pct = COALESCE($4, bulk_discount_pct)
+     WHERE id = $5`,
+    [label, pricePerMagnet, active, bulkDiscountPct ?? null, req.params.id],
   );
   res.json({ ok: true });
 });

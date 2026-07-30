@@ -56,6 +56,7 @@ interface OrderDetail {
   subtotal: string; shipping_cost: string; discount_amount: string;
   created_at: string; dispatched_at: string | null; delivered_at: string | null;
   tracking_number: string | null; tracking_carrier: string | null; notes: string | null;
+  referral_source: string | null; is_registered: boolean;
   shipping_first_name: string; shipping_last_name: string;
   shipping_address_line1: string; shipping_address_line2: string | null;
   shipping_city: string; shipping_postcode: string; shipping_country: string;
@@ -348,10 +349,11 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
       <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6">
         <h2 className="text-xl font-heading font-bold text-navy mb-4">👤 Customer</h2>
         <div className="flex flex-col gap-2">
-          <InfoRow label="Name"    value={fullName} />
-          <InfoRow label="Email"   value={order.email} />
-          <InfoRow label="Phone"   value={order.phone} />
-          <InfoRow label="Address" value={address} />
+          <InfoRow label="Name"       value={fullName} />
+          <InfoRow label="Email"      value={order.email} />
+          <InfoRow label="Phone"      value={order.phone} />
+          <InfoRow label="Address"    value={address} />
+          <InfoRow label="Referred by" value={order.is_registered ? 'Registered customer' : (order.referral_source ?? null)} />
         </div>
       </div>
 

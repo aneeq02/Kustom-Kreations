@@ -73,7 +73,7 @@ export default function StartPage() {
     const payload = { name: name.trim(), email: email.trim(), referralSource: source };
     localStorage.setItem('kk_lead', JSON.stringify(payload));
     // Fire-and-forget — don't block the UX on network
-    fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/api/leads`, {
+    fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api'}/leads`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),

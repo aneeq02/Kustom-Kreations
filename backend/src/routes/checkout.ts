@@ -26,6 +26,7 @@ router.post('/place-order', optionalAuth, async (req: AuthRequest, res: Response
     shippingAmount,
     total,
     guestEmail,
+    referralSource,
   } = req.body;
 
   if (!cartItems?.length) return res.status(400).json({ error: 'Cart is empty' });
@@ -156,12 +157,14 @@ router.post('/place-order', optionalAuth, async (req: AuthRequest, res: Response
       shipping_first_name, shipping_last_name, shipping_line1, shipping_line2,
       shipping_city, shipping_county, shipping_postcode, shipping_country,
       currency, subtotal, discount_amount, shipping_amount, total,
-      discount_code_id, voucher_id, voucher_amount_used, shipping_method_id
+      discount_code_id, voucher_id, voucher_amount_used, shipping_method_id,
+      referral_source
     ) VALUES (
       $1, $2, $3, 'pending',
       $4, $5, $6, $7, $8, $9, $10, $11,
       $12, $13, $14, $15, $16,
-      $17, $18, $19, $20
+      $17, $18, $19, $20,
+      $21
     ) RETURNING id, order_number
   `, [
     orderNumber,
@@ -180,6 +183,7 @@ router.post('/place-order', optionalAuth, async (req: AuthRequest, res: Response
     voucherId ?? null,
     computedVoucherAmount.toFixed(2),
     shippingMethodId ?? null,
+    req.customerId ? null : (referralSource ?? null),
   ]);
 
   const order = orderResult.rows[0];
@@ -400,6 +404,7 @@ router.post('/paypal/capture', optionalAuth, async (req: AuthRequest, res: Respo
     discountCodeId,
     voucherId,
     guestEmail,
+    referralSource,
   } = req.body;
 
   if (!paypalOrderId)     return res.status(400).json({ error: 'paypalOrderId required' });
@@ -451,13 +456,13 @@ router.post('/paypal/capture', optionalAuth, async (req: AuthRequest, res: Respo
         shipping_city, shipping_county, shipping_postcode, shipping_country,
         currency, subtotal, discount_amount, shipping_amount, total,
         discount_code_id, voucher_id, voucher_amount_used, shipping_method_id,
-        payment_intent_id, paid_at
+        payment_intent_id, referral_source, paid_at
       ) VALUES (
         $1, $2, $3, 'paid',
         $4, $5, $6, $7, $8, $9, $10, $11,
         $12, $13, $14, $15, $16,
         $17, $18, $19, $20,
-        $21, NOW()
+        $21, $22, NOW()
       ) RETURNING id, order_number
     `, [
       orderNumber,
@@ -477,6 +482,7 @@ router.post('/paypal/capture', optionalAuth, async (req: AuthRequest, res: Respo
       computedVoucherAmount.toFixed(2),
       shippingMethodId ?? null,
       paypalCaptureId ?? paypalOrderId,
+      req.customerId ? null : (referralSource ?? null),
     ]);
 
     const order = orderResult.rows[0];
@@ -530,7 +536,7 @@ router.post('/paypal/capture', optionalAuth, async (req: AuthRequest, res: Respo
 // Lets you test the full checkout→confirmation→admin flow without PayPal credentials.
 if (process.env.PAYPAL_DEV_BYPASS === 'true' && process.env.NODE_ENV !== 'production') {
   router.post('/dev-pay', optionalAuth, async (req: AuthRequest, res: Response) => {
-    const { shippingAddress, shippingMethodId, cartItems, currency, discountCodeId, voucherId, guestEmail } = req.body;
+    const { shippingAddress, shippingMethodId, cartItems, currency, discountCodeId, voucherId, guestEmail, referralSource } = req.body;
 
     if (!cartItems?.length) return res.status(400).json({ error: 'Cart is empty' });
     if (!shippingAddress)   return res.status(400).json({ error: 'Shipping address required' });
@@ -559,13 +565,13 @@ if (process.env.PAYPAL_DEV_BYPASS === 'true' && process.env.NODE_ENV !== 'produc
           shipping_city, shipping_county, shipping_postcode, shipping_country,
           currency, subtotal, discount_amount, shipping_amount, total,
           discount_code_id, voucher_id, voucher_amount_used, shipping_method_id,
-          payment_intent_id, paid_at
+          payment_intent_id, referral_source, paid_at
         ) VALUES (
           $1, $2, $3, 'paid',
           $4, $5, $6, $7, $8, $9, $10, $11,
           $12, $13, $14, $15, $16,
           $17, $18, $19, $20,
-          'DEV-BYPASS', NOW()
+          'DEV-BYPASS', $21, NOW()
         ) RETURNING id, order_number
       `, [
         orderNumber, req.customerId ?? null, guestEmail ?? null,
@@ -578,6 +584,7 @@ if (process.env.PAYPAL_DEV_BYPASS === 'true' && process.env.NODE_ENV !== 'produc
         computedShippingAmount.toFixed(2), computedTotal.toFixed(2),
         discountCodeId ?? null, voucherId ?? null, computedVoucherAmount.toFixed(2),
         shippingMethodId ?? null,
+        req.customerId ? null : (referralSource ?? null),
       ]);
 
       const order = orderResult.rows[0];

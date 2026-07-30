@@ -55,6 +55,7 @@ interface Order {
   id: string; order_number: string; status: string;
   total: string; created_at: string;
   shipping_first_name: string; shipping_last_name: string; email: string;
+  referral_source?: string | null;
 }
 
 interface OrdersResponse {
@@ -166,11 +167,15 @@ export default function AdminOrdersPage() {
                           {STATUS_LABEL[order.status] ?? order.status}
                         </span>
                       </div>
-                      <div className="text-gray-500 text-sm mt-0.5">
-                        {order.shipping_first_name} {order.shipping_last_name}
-                        {order.email ? ` · ${order.email}` : ''}
-                        {' · '}
-                        {new Date(order.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      <div className="text-gray-500 text-sm mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                        <span>{order.shipping_first_name} {order.shipping_last_name}</span>
+                        {order.email && <span>· {order.email}</span>}
+                        <span>· {new Date(order.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                        {order.referral_source && (
+                          <span className="inline-block text-[10px] font-semibold bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">
+                            via {order.referral_source}
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-3 shrink-0">
