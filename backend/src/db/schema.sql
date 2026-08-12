@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS customer_addresses (
   city          TEXT NOT NULL,
   county        TEXT,
   postcode      TEXT NOT NULL,
-  country       TEXT NOT NULL DEFAULT 'GB', -- GB, IM, IE
+  country       TEXT NOT NULL DEFAULT 'GB', -- GB, IM
   is_default    BOOLEAN DEFAULT FALSE,
   created_at    TIMESTAMPTZ DEFAULT NOW()
 );
@@ -121,8 +121,8 @@ CREATE TABLE IF NOT EXISTS gift_vouchers (
 -- ─── Shipping ────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS shipping_zones (
   id        UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  name      TEXT NOT NULL,               -- 'UK Mainland', 'Isle of Man', 'Republic of Ireland'
-  countries TEXT[] NOT NULL,             -- ['GB'], ['IM'], ['IE']
+  name      TEXT NOT NULL,               -- 'UK Mainland', 'Isle of Man'
+  countries TEXT[] NOT NULL,             -- ['GB'], ['IM']
   currency  TEXT NOT NULL DEFAULT 'GBP'
 );
 
@@ -272,8 +272,7 @@ ON CONFLICT DO NOTHING;
 -- Shipping zones
 INSERT INTO shipping_zones (name, countries, currency) VALUES
   ('UK Mainland', ARRAY['GB'], 'GBP'),
-  ('Isle of Man', ARRAY['IM'], 'GBP'),
-  ('Republic of Ireland', ARRAY['IE'], 'EUR')
+  ('Isle of Man', ARRAY['IM'], 'GBP')
 ON CONFLICT DO NOTHING;
 
 -- Indexes

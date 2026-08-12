@@ -7,6 +7,61 @@ import { createPayPalOrder, capturePayPalOrder } from '../services/paypal';
 
 const router = Router();
 
+// ── Per-layout bulk discounts ───────────────────────────────────────────────
+// A "layout" here is 1x1 (single magnet) or an NxN tiled set. Each photo the
+// customer uploads is its own product/line item (quantity 1); the discount
+// is unlocked once the *count of products sharing a layout* — not the count
+// of physical magnets — reaches that layout's admin-configured threshold.
+
+// 'photo-magnet-50mm' -> '1x1' (no suffix = single magnet)
+// 'photo-magnet-50mm-3x3' -> '3x3'
+function resolveLayoutSlug(productId: string): string {
+  const m = (productId as string).match(/-(\d+x\d+)$/);
+  return m ? m[1] : '1x1';
+}
+
+async function loadLayoutDiscounts(): Promise<Map<string, { qty: number | null; pct: number }>> {
+  const res = await pool.query('SELECT slug, bulk_discount_qty, bulk_discount_pct FROM tile_layouts');
+  const map = new Map<string, { qty: number | null; pct: number }>();
+  for (const row of res.rows) {
+    map.set(row.slug, {
+      qty: row.bulk_discount_qty !== null ? Number(row.bulk_discount_qty) : null,
+      pct: parseFloat(row.bulk_discount_pct ?? 0),
+    });
+  }
+  return map;
+}
+
+// Returns the discount percentage to apply to each cart item (same order as
+// input), based on how many products of that item's layout are in the cart.
+function computeLayoutDiscountPcts(
+  cartItems: Array<{ productId: string; quantity: number }>,
+  layoutDiscounts: Map<string, { qty: number | null; pct: number }>,
+): number[] {
+  const groupQty = new Map<string, number>();
+  for (const item of cartItems) {
+    const slug = resolveLayoutSlug(item.productId);
+    groupQty.set(slug, (groupQty.get(slug) ?? 0) + item.quantity);
+  }
+  return cartItems.map(item => {
+    const slug = resolveLayoutSlug(item.productId);
+    const cfg = layoutDiscounts.get(slug);
+    if (!cfg?.qty) return 0;
+    return (groupQty.get(slug) ?? 0) >= cfg.qty ? cfg.pct : 0;
+  });
+}
+
+// Charm pricing for the final order total: round down to the nearest 50p
+// strictly below the raw amount, e.g. 18.74 -> 18.50, 20.00 -> 19.50.
+// Only applied to the bottom-line total — line items stay exact. Must match
+// frontend's roundToCharmPrice exactly, since this is the amount actually
+// charged via PayPal.
+function roundToCharmPrice(amount: number): number {
+  const pence = Math.round(amount * 100);
+  const flooredPence = Math.max(0, Math.floor((pence - 1) / 50) * 50);
+  return flooredPence / 100;
+}
+
 /**
  * POST /api/checkout/place-order
  * Creates the order directly — no payment processing yet.
@@ -36,7 +91,12 @@ router.post('/place-order', optionalAuth, async (req: AuthRequest, res: Response
   let computedSubtotal = 0;
   const enrichedItems: any[] = [];
 
-  for (const item of cartItems) {
+  const layoutDiscounts = await loadLayoutDiscounts();
+  const discountPcts = computeLayoutDiscountPcts(cartItems, layoutDiscounts);
+
+  for (let idx = 0; idx < cartItems.length; idx++) {
+    const item = cartItems[idx];
+
     // Slug format: 'photo-magnet-50mm' or 'photo-magnet-50mm-3x3'
     // Extract size in mm to price from the admin-configurable magnet_sizes table
     const sizeMatch = (item.productId as string).match(/(\d+)mm/);
@@ -64,23 +124,11 @@ router.post('/place-order', optionalAuth, async (req: AuthRequest, res: Response
       const pResult = await pool.query('SELECT * FROM products WHERE id = $1', [item.productId]);
       const product = pResult.rows[0];
       if (!product) return res.status(400).json({ error: `Unknown product: ${item.productId}` });
-      unitPrice = currency === 'EUR'
-        ? parseFloat(product.base_price_eur)
-        : parseFloat(product.base_price_gbp);
+      unitPrice = parseFloat(product.base_price_gbp);
       resolvedProductId = product.id;
     }
 
-    // Bulk discount tiers (tied to the products table)
-    const tierResult = resolvedProductId
-      ? await pool.query(
-          `SELECT discount_pct FROM bulk_discount_tiers
-           WHERE product_id=$1 AND min_qty <= $2 AND (max_qty IS NULL OR max_qty >= $2) AND active=TRUE
-           ORDER BY sort_order DESC LIMIT 1`,
-          [resolvedProductId, item.quantity],
-        )
-      : { rows: [] };
-
-    const discountPct = tierResult.rows[0] ? parseFloat(tierResult.rows[0].discount_pct) : 0;
+    const discountPct = discountPcts[idx];
     const itemTotal = unitPrice * item.quantity * (1 - discountPct / 100);
     computedSubtotal += itemTotal;
 
@@ -114,8 +162,7 @@ router.post('/place-order', optionalAuth, async (req: AuthRequest, res: Response
     if (dc.rows[0]) {
       const d = dc.rows[0];
       if (d.type === 'percent') computedDiscountAmount = (computedSubtotal * parseFloat(d.value)) / 100;
-      else if (d.type === 'fixed_gbp' && currency === 'GBP') computedDiscountAmount = Math.min(parseFloat(d.value), computedSubtotal);
-      else if (d.type === 'fixed_eur' && currency === 'EUR') computedDiscountAmount = Math.min(parseFloat(d.value), computedSubtotal);
+      else if (d.type === 'fixed_gbp') computedDiscountAmount = Math.min(parseFloat(d.value), computedSubtotal);
       else if (d.type === 'free_shipping') isFreeShipping = true;
     }
   }
@@ -125,9 +172,7 @@ router.post('/place-order', optionalAuth, async (req: AuthRequest, res: Response
   if (voucherId) {
     const v = await pool.query('SELECT * FROM gift_vouchers WHERE id=$1 AND active=TRUE', [voucherId]);
     if (v.rows[0]) {
-      const bal = currency === 'EUR'
-        ? parseFloat(v.rows[0].remaining_balance_eur ?? 0)
-        : parseFloat(v.rows[0].remaining_balance_gbp ?? 0);
+      const bal = parseFloat(v.rows[0].remaining_balance_gbp ?? 0);
       computedVoucherAmount = Math.min(bal, computedSubtotal - computedDiscountAmount);
     }
   }
@@ -137,13 +182,13 @@ router.post('/place-order', optionalAuth, async (req: AuthRequest, res: Response
   if (shippingMethodId && !isFreeShipping) {
     const sm = await pool.query('SELECT * FROM shipping_methods WHERE id=$1', [shippingMethodId]);
     if (sm.rows[0]) {
-      const price = currency === 'EUR' ? sm.rows[0].price_eur : sm.rows[0].price_gbp;
-      const freeFrom = currency === 'EUR' ? sm.rows[0].free_from_eur : sm.rows[0].free_from_gbp;
+      const price = sm.rows[0].price_gbp;
+      const freeFrom = sm.rows[0].free_from_gbp;
       computedShippingAmount = freeFrom && computedSubtotal >= parseFloat(freeFrom) ? 0 : parseFloat(price);
     }
   }
 
-  const computedTotal = Math.max(0, computedSubtotal - computedDiscountAmount - computedVoucherAmount + computedShippingAmount);
+  const computedTotal = roundToCharmPrice(Math.max(0, computedSubtotal - computedDiscountAmount - computedVoucherAmount + computedShippingAmount));
   const orderNumber = await generateOrderNumber();
 
   const email = guestEmail
@@ -211,7 +256,7 @@ router.post('/place-order', optionalAuth, async (req: AuthRequest, res: Response
 
   // Deduct gift voucher balance
   if (voucherId && computedVoucherAmount > 0) {
-    const col = currency === 'EUR' ? 'remaining_balance_eur' : 'remaining_balance_gbp';
+    const col = 'remaining_balance_gbp';
     await pool.query(`UPDATE gift_vouchers SET ${col} = ${col} - $1 WHERE id=$2`, [computedVoucherAmount, voucherId]);
   }
 
@@ -243,17 +288,21 @@ router.post('/place-order', optionalAuth, async (req: AuthRequest, res: Response
  */
 async function computeCart(body: {
   cartItems: any[];
-  currency: string;
   discountCodeId?: string | null;
   voucherId?: string | null;
   shippingMethodId?: string | null;
 }) {
-  const { cartItems, currency, discountCodeId, voucherId, shippingMethodId } = body;
+  const { cartItems, discountCodeId, voucherId, shippingMethodId } = body;
 
   let computedSubtotal = 0;
   const enrichedItems: any[] = [];
 
-  for (const item of cartItems) {
+  const layoutDiscounts = await loadLayoutDiscounts();
+  const discountPcts = computeLayoutDiscountPcts(cartItems, layoutDiscounts);
+
+  for (let idx = 0; idx < cartItems.length; idx++) {
+    const item = cartItems[idx];
+
     const sizeMatch = (item.productId as string).match(/(\d+)mm/);
     const sizeMm = sizeMatch ? parseInt(sizeMatch[1]) : null;
     let resolvedProductId: string | null = null;
@@ -272,22 +321,11 @@ async function computeCart(body: {
       const pResult = await pool.query('SELECT * FROM products WHERE id = $1', [item.productId]);
       const product = pResult.rows[0];
       if (!product) throw new Error(`Unknown product: ${item.productId}`);
-      unitPrice = currency === 'EUR'
-        ? parseFloat(product.base_price_eur)
-        : parseFloat(product.base_price_gbp);
+      unitPrice = parseFloat(product.base_price_gbp);
       resolvedProductId = product.id;
     }
 
-    const tierResult = resolvedProductId
-      ? await pool.query(
-          `SELECT discount_pct FROM bulk_discount_tiers
-           WHERE product_id=$1 AND min_qty <= $2 AND (max_qty IS NULL OR max_qty >= $2) AND active=TRUE
-           ORDER BY sort_order DESC LIMIT 1`,
-          [resolvedProductId, item.quantity],
-        )
-      : { rows: [] };
-
-    const discountPct = tierResult.rows[0] ? parseFloat(tierResult.rows[0].discount_pct) : 0;
+    const discountPct = discountPcts[idx];
     const itemTotal   = unitPrice * item.quantity * (1 - discountPct / 100);
     computedSubtotal += itemTotal;
 
@@ -319,8 +357,7 @@ async function computeCart(body: {
     if (dc.rows[0]) {
       const d = dc.rows[0];
       if (d.type === 'percent') computedDiscountAmount = (computedSubtotal * parseFloat(d.value)) / 100;
-      else if (d.type === 'fixed_gbp' && currency === 'GBP') computedDiscountAmount = Math.min(parseFloat(d.value), computedSubtotal);
-      else if (d.type === 'fixed_eur' && currency === 'EUR') computedDiscountAmount = Math.min(parseFloat(d.value), computedSubtotal);
+      else if (d.type === 'fixed_gbp') computedDiscountAmount = Math.min(parseFloat(d.value), computedSubtotal);
       else if (d.type === 'free_shipping') isFreeShipping = true;
     }
   }
@@ -329,9 +366,7 @@ async function computeCart(body: {
   if (voucherId) {
     const v = await pool.query('SELECT * FROM gift_vouchers WHERE id=$1 AND active=TRUE', [voucherId]);
     if (v.rows[0]) {
-      const bal = currency === 'EUR'
-        ? parseFloat(v.rows[0].remaining_balance_eur ?? 0)
-        : parseFloat(v.rows[0].remaining_balance_gbp ?? 0);
+      const bal = parseFloat(v.rows[0].remaining_balance_gbp ?? 0);
       computedVoucherAmount = Math.min(bal, computedSubtotal - computedDiscountAmount);
     }
   }
@@ -340,13 +375,13 @@ async function computeCart(body: {
   if (shippingMethodId && !isFreeShipping) {
     const sm = await pool.query('SELECT * FROM shipping_methods WHERE id=$1', [shippingMethodId]);
     if (sm.rows[0]) {
-      const price    = currency === 'EUR' ? sm.rows[0].price_eur    : sm.rows[0].price_gbp;
-      const freeFrom = currency === 'EUR' ? sm.rows[0].free_from_eur : sm.rows[0].free_from_gbp;
+      const price    = sm.rows[0].price_gbp;
+      const freeFrom = sm.rows[0].free_from_gbp;
       computedShippingAmount = freeFrom && computedSubtotal >= parseFloat(freeFrom) ? 0 : parseFloat(price);
     }
   }
 
-  const computedTotal = Math.max(0, computedSubtotal - computedDiscountAmount - computedVoucherAmount + computedShippingAmount);
+  const computedTotal = roundToCharmPrice(Math.max(0, computedSubtotal - computedDiscountAmount - computedVoucherAmount + computedShippingAmount));
 
   return {
     enrichedItems,
@@ -370,7 +405,7 @@ router.post('/paypal/create-order', optionalAuth, async (req: AuthRequest, res: 
 
   try {
     const { computedTotal } = await computeCart({
-      cartItems, currency, discountCodeId, voucherId, shippingMethodId,
+      cartItems, discountCodeId, voucherId, shippingMethodId,
     });
 
     // Use a temporary reference; the real order number is created on capture
@@ -420,7 +455,7 @@ router.post('/paypal/capture', optionalAuth, async (req: AuthRequest, res: Respo
       computedVoucherAmount,
       computedShippingAmount,
       computedTotal,
-    } = await computeCart({ cartItems, currency, discountCodeId, voucherId, shippingMethodId });
+    } = await computeCart({ cartItems, discountCodeId, voucherId, shippingMethodId });
 
     // 2. Capture the PayPal payment
     const capture = await capturePayPalOrder(paypalOrderId);
@@ -510,7 +545,7 @@ router.post('/paypal/capture', optionalAuth, async (req: AuthRequest, res: Respo
 
     // 7. Deduct voucher balance
     if (voucherId && computedVoucherAmount > 0) {
-      const col = currency === 'EUR' ? 'remaining_balance_eur' : 'remaining_balance_gbp';
+      const col = 'remaining_balance_gbp';
       await pool.query(`UPDATE gift_vouchers SET ${col} = ${col} - $1 WHERE id=$2`, [computedVoucherAmount, voucherId]);
     }
 
@@ -549,7 +584,7 @@ if (process.env.PAYPAL_DEV_BYPASS === 'true' && process.env.NODE_ENV !== 'produc
         computedVoucherAmount,
         computedShippingAmount,
         computedTotal,
-      } = await computeCart({ cartItems, currency, discountCodeId, voucherId, shippingMethodId });
+      } = await computeCart({ cartItems, discountCodeId, voucherId, shippingMethodId });
 
       const orderNumber = await generateOrderNumber();
 

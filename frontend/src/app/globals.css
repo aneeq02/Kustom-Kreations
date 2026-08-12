@@ -4,6 +4,8 @@
   /* ── Dusty Rose & Sage palette ────────────── */
   --color-coral:          #CDABA0;
   --color-coral-light:    #EACEC4;
+  --color-teal:           #006E71;
+  --color-teal-light:     #D6E7E7;
   --color-sky:            #B8C5B9;
   --color-sky-light:      #E4E3E5;
   --color-yellow:         #CDABA0;
@@ -48,12 +50,16 @@ body {
   border-radius: 6px;
 }
 
-html { scroll-behavior: smooth; }
+html::-webkit-scrollbar {
+  display: none;
+}
 
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--color-coral-light); border-radius: 99px; }
-
+/* For Firefox and IE/Edge Legacy */
+html {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+  scroll-behavior: smooth; /* Kept from your original code */
+}
 /* ── Animations ───────────────────────────────── */
 @keyframes float {
   0%, 100% { transform: translateY(0px) rotate(var(--rot, 0deg)); }

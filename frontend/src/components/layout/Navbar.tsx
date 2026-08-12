@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { useState, useEffect } from 'react';
 import { useCart } from '@/context/CartContext';
 import { useAuth } from '@/context/AuthContext';
@@ -14,26 +15,24 @@ export default function Navbar() {
 
   return (
     <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-coral-light/40 shadow-sm">
-      <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between gap-4">
+      <div className="mx-auto px-4 h-16 flex items-center gap-4">
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-2.5 shrink-0">
-          <div className="w-9 h-9 bg-coral rounded-[10px] flex items-center justify-center text-white text-lg font-black">
-            K
-          </div>
-          <span className="font-heading font-bold text-navy text-lg leading-tight">
-            kustom <span className="text-coral">kreations</span>
+        <Link href="/" className="flex-1 flex items-center gap-2.5">
+          <Image src="/logo-teal.png" alt="Kustom Kreations" width={44} height={44} className="w-11 h-11" priority />
+          <span className="hidden sm:block font-heading font-bold text-navy text-lg leading-tight">
+            kustom <span className="text-teal">kreations</span>
           </span>
         </Link>
 
         {/* Desktop nav */}
-        <nav className="hidden md:flex items-center gap-6 text-sm font-semibold text-text-secondary">
+        <nav className="flex-1 hidden md:flex items-center justify-center gap-6 text-sm font-semibold text-text-secondary">
           <Link href="/start" className="hover:text-coral transition-colors">Make Magnets</Link>
           <Link href="/faq" className="hover:text-coral transition-colors">FAQ</Link>
           <Link href="/shipping" className="hover:text-coral transition-colors">Shipping</Link>
         </nav>
 
         {/* Right actions */}
-        <div className="flex items-center gap-3">
+        <div className="flex-1 flex items-center justify-end gap-3">
           {mounted && (customer ? (
             <Link href="/account" className="hidden md:flex items-center gap-1.5 text-sm font-semibold text-navy hover:text-coral transition-colors">
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

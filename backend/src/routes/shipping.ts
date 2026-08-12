@@ -4,16 +4,15 @@ import pool from '../db/pool';
 const router = Router();
 
 // Supported shipping countries
-const SUPPORTED_COUNTRIES = ['GB', 'IM', 'IE'];
+const SUPPORTED_COUNTRIES = ['GB', 'IM'];
 
 router.get('/methods', async (req: Request, res: Response) => {
-  const { country, subtotal, currency } = req.query;
+  const { country, subtotal } = req.query;
 
   if (!country || !SUPPORTED_COUNTRIES.includes(country as string)) {
     return res.status(400).json({ error: 'Shipping not available to this country', supportedCountries: SUPPORTED_COUNTRIES });
   }
 
-  const curr = currency || 'GBP';
   const sub = parseFloat(subtotal as string || '0');
 
   const result = await pool.query(`
@@ -26,8 +25,8 @@ router.get('/methods', async (req: Request, res: Response) => {
   `, [country]);
 
   const methods = result.rows.map(m => {
-    const price = curr === 'EUR' ? m.price_eur : m.price_gbp;
-    const freeFrom = curr === 'EUR' ? m.free_from_eur : m.free_from_gbp;
+    const price = m.price_gbp;
+    const freeFrom = m.free_from_gbp;
     const isFree = freeFrom !== null && sub >= parseFloat(freeFrom);
     return {
       id: m.id,
@@ -39,11 +38,11 @@ router.get('/methods', async (req: Request, res: Response) => {
       freeFrom: freeFrom ? parseFloat(freeFrom) : null,
       estimatedDaysMin: m.estimated_days_min,
       estimatedDaysMax: m.estimated_days_max,
-      currency: curr,
+      currency: 'GBP',
     };
   });
 
-  res.json({ methods, currency: curr });
+  res.json({ methods, currency: 'GBP' });
 });
 
 router.get('/countries', (_req: Request, res: Response) => {
@@ -51,7 +50,6 @@ router.get('/countries', (_req: Request, res: Response) => {
     supported: [
       { code: 'GB', name: 'United Kingdom', currency: 'GBP' },
       { code: 'IM', name: 'Isle of Man', currency: 'GBP' },
-      { code: 'IE', name: 'Republic of Ireland', currency: 'EUR' },
     ],
   });
 });

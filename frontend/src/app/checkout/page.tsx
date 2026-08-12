@@ -9,9 +9,12 @@ import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
 import { api } from '@/lib/api';
-import { calcCartTotals, formatPrice, countryToCurrency } from '@/lib/pricing';
+import { calcCartTotals, formatPrice, roundToCharmPrice, type LayoutDiscountMap } from '@/lib/pricing';
+import { buildLayoutDiscountMap, type MagnetProductConfig } from '@/lib/tiledProducts';
 import { ShippingMethod, ShippingAddress } from '@/types';
 import { PayPalScriptProvider, PayPalButtons } from '@paypal/react-paypal-js';
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
 
 type CheckoutStep = 'address' | 'shipping' | 'review';
 
@@ -40,18 +43,26 @@ export default function CheckoutPage() {
   const [selectedMethodId, setSelectedMethodId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [layoutDiscounts, setLayoutDiscounts] = useState<LayoutDiscountMap | undefined>(undefined);
 
-  const currency = countryToCurrency(address.country);
+  useEffect(() => {
+    fetch(`${API_BASE}/magnets/config`)
+      .then(r => r.json())
+      .then((cfg: MagnetProductConfig) => setLayoutDiscounts(buildLayoutDiscountMap(cfg.layouts)))
+      .catch(() => {});
+  }, []);
+
+  const currency = 'GBP';
   const meta = typeof sessionStorage !== 'undefined'
     ? JSON.parse(sessionStorage.getItem('kk_checkout_meta') || '{}')
     : {};
 
-  const { subtotal } = calcCartTotals(items);
+  const { subtotal } = calcCartTotals(items, layoutDiscounts);
   const selectedMethod = shippingMethods.find(m => m.id === selectedMethodId);
   const shippingAmt = selectedMethod?.price ?? 0;
   const discountAmt: number = meta.discountAmount ?? 0;
   const voucherAmt: number = meta.voucherAmount ?? 0;
-  const total = Math.max(0, subtotal - discountAmt - voucherAmt + shippingAmt);
+  const total = roundToCharmPrice(Math.max(0, subtotal - discountAmt - voucherAmt + shippingAmt));
 
   useEffect(() => {
     if (customer) {
@@ -263,12 +274,11 @@ export default function CheckoutPage() {
                     <select
                       required
                       value={address.country}
-                      onChange={e => setAddress(a => ({ ...a, country: e.target.value as 'GB' | 'IM' | 'IE' }))}
+                      onChange={e => setAddress(a => ({ ...a, country: e.target.value as 'GB' | 'IM' }))}
                       className="w-full px-4 py-3 rounded-xl border-2 border-coral-light focus:border-coral focus:outline-none bg-white text-navy min-h-[44px]"
                     >
                       <option value="GB">United Kingdom</option>
                       <option value="IM">Isle of Man</option>
-                      <option value="IE">Republic of Ireland</option>
                     </select>
                   </div>
                 </div>
@@ -308,14 +318,14 @@ export default function CheckoutPage() {
                       <div className="text-xs text-text-secondary mt-0.5">
                         {m.estimatedDaysMin}–{m.estimatedDaysMax} working days
                         {m.freeFrom !== null && !m.isFree && (
-                          <> · Free over {formatPrice(m.freeFrom, currency as 'GBP' | 'EUR')}</>
+                          <> · Free over {formatPrice(m.freeFrom)}</>
                         )}
                       </div>
                     </div>
                     <div className="font-bold text-navy shrink-0">
                       {m.isFree
                         ? <Badge color="green">FREE</Badge>
-                        : formatPrice(m.price, currency as 'GBP' | 'EUR')
+                        : formatPrice(m.price)
                       }
                     </div>
                   </label>
@@ -344,7 +354,7 @@ export default function CheckoutPage() {
                   {address.firstName} {address.lastName}<br />
                   {address.line1}{address.line2 ? `, ${address.line2}` : ''}<br />
                   {address.city}{address.county ? `, ${address.county}` : ''}, {address.postcode}<br />
-                  {address.country === 'GB' ? 'United Kingdom' : address.country === 'IM' ? 'Isle of Man' : 'Republic of Ireland'}
+                  {address.country === 'GB' ? 'United Kingdom' : 'Isle of Man'}
                 </p>
               </div>
 
@@ -360,7 +370,7 @@ export default function CheckoutPage() {
                     {' · '}
                     {selectedMethod.isFree
                       ? <span className="text-green-600 font-semibold">FREE</span>
-                      : formatPrice(selectedMethod.price, currency as 'GBP' | 'EUR')
+                      : formatPrice(selectedMethod.price)
                     }
                   </p>
                 </div>
@@ -478,7 +488,7 @@ export default function CheckoutPage() {
             )}
             <div className="flex justify-between font-bold text-navy text-base pt-1 border-t border-coral-light/40">
               <span>Total</span>
-              <span>{formatPrice(total, currency as 'GBP' | 'EUR')}</span>
+              <span>{formatPrice(total)}</span>
             </div>
           </div>
         </Card>

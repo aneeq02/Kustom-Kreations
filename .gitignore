@@ -26,4 +26,5 @@ logs/
 
 *.zip
 backend/dist/
+frontend/dist/
 .next/

@@ -14,11 +14,11 @@ const FAQ = [
   },
   {
     q: 'How long does delivery take?',
-    a: 'Standard delivery to UK mainland takes 3–5 working days. Express options are also available. Isle of Man and Republic of Ireland may take slightly longer.',
+    a: 'Standard delivery to UK mainland takes 3–5 working days. Express options are also available. Isle of Man may take slightly longer.',
   },
   {
     q: 'Do you ship outside the UK?',
-    a: "At launch we ship to the UK (including Isle of Man) and Republic of Ireland only. We're working on expanding to more countries — join our mailing list to be notified.",
+    a: "At launch we ship to the UK and Isle of Man only. We're working on expanding to more countries — join our mailing list to be notified.",
   },
   {
     q: 'Can I order just one magnet?',

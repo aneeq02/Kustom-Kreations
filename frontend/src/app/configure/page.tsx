@@ -2,7 +2,6 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
 import {
   calcSetPrice,
@@ -12,6 +11,9 @@ import {
 } from '@/lib/tiledProducts';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
+
+// Soft glow ring shown around whichever size/layout card is currently selected
+const SELECTED_GLOW = 'shadow-[0_0_0_3px_rgba(205,171,160,0.45),0_0_18px_4px_rgba(205,171,160,0.65)]';
 
 function GridIcon({ rows, cols, active }: { rows: number; cols: number; active: boolean }) {
   const r = Math.max(rows, 1);
@@ -81,8 +83,6 @@ function SelectionContent() {
   };
 
   const count = selectedLayout ? selectedLayout.rows * selectedLayout.cols : 0;
-  const price =
-    selectedSize && selectedLayout ? calcSetPrice(selectedLayout, selectedSize) : 0;
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -113,7 +113,7 @@ function SelectionContent() {
                 onClick={() => setSelectedSize(s)}
                 className={`flex-1 py-3.5 px-4 rounded-xl border-2 text-left transition-all ${
                   selectedSize?.id === s.id
-                    ? 'border-coral bg-coral text-white shadow-md'
+                    ? `border-coral bg-coral text-white ${SELECTED_GLOW}`
                     : 'border-coral-light bg-white text-navy hover:border-coral/50 hover:shadow-sm'
                 }`}
               >
@@ -155,7 +155,7 @@ function SelectionContent() {
                     onClick={() => setSelectedLayout(l)}
                     className={`relative p-4 rounded-xl border-2 text-left transition-all ${
                       isSelected
-                        ? 'border-coral bg-coral text-white shadow-md'
+                        ? `border-coral bg-coral text-white ${SELECTED_GLOW}`
                         : 'border-coral-light bg-white text-navy hover:border-coral/50 hover:shadow-sm'
                     }`}
                   >
@@ -202,23 +202,6 @@ function SelectionContent() {
               })}
             </div>
 
-            {/* Custom layout — only shown when admin enables it */}
-            {config?.layouts.find(l => l.slug === 'custom' && l.active) && (
-              <Link
-                href="/contact"
-                className="mt-3 flex items-center gap-4 p-4 rounded-xl border-2 border-dashed border-coral/40 bg-coral/5 hover:bg-coral/10 hover:border-coral/60 transition-all"
-              >
-                <span className="text-3xl shrink-0">✉️</span>
-                <div>
-                  <div className="font-bold text-navy">Custom Layout</div>
-                  <div className="text-sm text-text-secondary mt-0.5">
-                    Need a different size or arrangement? Get in touch and we'll create something just for you.
-                  </div>
-                </div>
-                <span className="ml-auto text-coral font-bold shrink-0">Contact →</span>
-              </Link>
-            )}
-
             {/* Coming soon */}
             {config?.layouts.filter(l => !l.active && l.slug !== 'custom' && l.rows > 0).length ? (
               <div className="mt-3 grid grid-cols-3 gap-2">
@@ -252,23 +235,13 @@ function SelectionContent() {
                   ? `${count} × ${selectedSize.label} magnets`
                   : `1 × ${selectedSize.label} magnet`}
               </div>
-              <div className="flex items-baseline gap-2 mt-0.5">
-                <span className="text-2xl font-heading font-bold text-coral">
-                  £{price.toFixed(2)}
-                </span>
-                {count > 1 && (
-                  <span className="text-xs text-text-secondary">
-                    · £{(price / count).toFixed(2)} each
-                  </span>
-                )}
-              </div>
             </div>
             <Button
               size="lg"
               onClick={handleContinue}
               className="w-full sm:w-auto"
             >
-              Start Designing →
+              Upload Now →
             </Button>
           </>
         )}

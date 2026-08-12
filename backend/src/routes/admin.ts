@@ -559,20 +559,21 @@ router.patch('/products/sizes/:id', async (req: Request, res: Response) => {
 
 router.get('/products/layouts', async (_req, res) => {
   const result = await pool.query(
-    `SELECT id, slug, label, rows, cols, active, bulk_discount_pct FROM tile_layouts ORDER BY sort_order`,
+    `SELECT id, slug, label, rows, cols, active, bulk_discount_pct, bulk_discount_qty FROM tile_layouts ORDER BY sort_order`,
   );
   res.json(result.rows);
 });
 
 router.patch('/products/layouts/:id', async (req: Request, res: Response) => {
-  const { active, bulkDiscountPct } = req.body;
+  const { active, bulkDiscountPct, bulkDiscountQty } = req.body;
   const result = await pool.query(
     `UPDATE tile_layouts SET
        active            = COALESCE($2, active),
-       bulk_discount_pct = COALESCE($3, bulk_discount_pct)
+       bulk_discount_pct = COALESCE($3, bulk_discount_pct),
+       bulk_discount_qty = $4
      WHERE id = $1
-     RETURNING id, slug, label, rows, cols, active, bulk_discount_pct`,
-    [req.params.id, active ?? null, bulkDiscountPct ?? null],
+     RETURNING id, slug, label, rows, cols, active, bulk_discount_pct, bulk_discount_qty`,
+    [req.params.id, active ?? null, bulkDiscountPct ?? null, bulkDiscountQty ?? null],
   );
   res.json(result.rows[0]);
 });

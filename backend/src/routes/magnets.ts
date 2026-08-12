@@ -35,6 +35,7 @@ async function ensureTables() {
       active            BOOLEAN NOT NULL DEFAULT false,
       badge             TEXT,
       bulk_discount_pct NUMERIC(5,2) NOT NULL DEFAULT 0,
+      bulk_discount_qty INTEGER,
       sort_order        INTEGER NOT NULL DEFAULT 0
     )
   `);
@@ -47,8 +48,7 @@ async function ensureTables() {
       ('2x2',   '2x2 Set', '4 magnets',                             2, 2, false, NULL,     10,  1),
       ('3x3',   '3x3 Set', '9 magnets - one photo across a 3x3 grid',3,3, true, 'Popular', 15,  2),
       ('4x4',   '4x4 Set', '16 magnets',                            4, 4, false, NULL,     20,  3),
-      ('5x5',   '5x5 Set', '25 magnets',                            5, 5, false, NULL,     20,  4),
-      ('custom','Custom',  'Get in touch for a custom layout',       0, 0, false, NULL,      0,  5)
+      ('5x5',   '5x5 Set', '25 magnets',                            5, 5, false, NULL,     20,  4)
     ON CONFLICT (slug) DO UPDATE
       SET label       = EXCLUDED.label,
           description = EXCLUDED.description,
@@ -103,6 +103,10 @@ pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS referral_source TEXT`)
   .catch(() => {});
 pool.query(`ALTER TABLE magnet_sizes ADD COLUMN IF NOT EXISTS bulk_discount_pct NUMERIC(5,2) NOT NULL DEFAULT 15`)
   .catch(() => {});
+pool.query(`DELETE FROM tile_layouts WHERE slug = 'custom'`)
+  .catch(() => {});
+pool.query(`ALTER TABLE tile_layouts ADD COLUMN IF NOT EXISTS bulk_discount_qty INTEGER`)
+  .catch(() => {});
 
 ensureTables().catch(err => console.error('Magnet table init error:', err));
 
@@ -141,6 +145,7 @@ router.get('/config', async (_req: Request, res: Response) => {
       active: r.active,
       badge: r.badge,
       bulkDiscountPct: parseFloat(r.bulk_discount_pct),
+      bulkDiscountQty: r.bulk_discount_qty !== null ? Number(r.bulk_discount_qty) : null,
       sortOrder: Number(r.sort_order),
     })),
     printConfig,

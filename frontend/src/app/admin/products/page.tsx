@@ -9,7 +9,7 @@ interface MagnetSize {
 
 interface TileLayout {
   id: string; slug: string; label: string; rows: number; cols: number;
-  active: boolean; bulk_discount_pct: number;
+  active: boolean; bulk_discount_pct: number; bulk_discount_qty: number | null;
 }
 
 function SizeCard({ size, onSave }: { size: MagnetSize; onSave: () => void }) {
@@ -91,6 +91,7 @@ const GRID_ICON: Record<string, string> = {
 function LayoutCard({ layout, onSave }: { layout: TileLayout; onSave: () => void }) {
   const [active, setActive]     = useState(layout.active);
   const [discount, setDiscount] = useState(layout.bulk_discount_pct.toString());
+  const [bulkQty, setBulkQty]   = useState(layout.bulk_discount_qty?.toString() ?? '');
   const [saving, setSaving]     = useState(false);
   const [saved, setSaved]       = useState(false);
   const [error, setError]       = useState('');
@@ -100,9 +101,11 @@ function LayoutCard({ layout, onSave }: { layout: TileLayout; onSave: () => void
     setSaving(true);
     setError('');
     try {
+      const qty = parseInt(bulkQty, 10);
       await adminPatch(`/products/layouts/${layout.id}`, {
         active: activeValue,
         bulkDiscountPct: parseFloat(discount) || 0,
+        bulkDiscountQty: Number.isFinite(qty) && qty > 0 ? qty : null,
       });
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
@@ -140,7 +143,19 @@ function LayoutCard({ layout, onSave }: { layout: TileLayout; onSave: () => void
       </div>
       <div className="flex gap-3 items-end">
         <div className="flex-1">
-          <label className="block font-bold text-navy text-sm mb-1">Bulk Discount %</label>
+          <label className="block font-bold text-navy text-sm mb-1">Bulk Discount Qty</label>
+          <input
+            type="number"
+            step="1"
+            min="0"
+            placeholder="e.g. 8"
+            value={bulkQty}
+            onChange={e => setBulkQty(e.target.value)}
+            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:border-coral"
+          />
+        </div>
+        <div className="flex-1">
+          <label className="block font-bold text-navy text-sm mb-1">Discount %</label>
           <div className="relative">
             <input
               type="number"
@@ -162,6 +177,9 @@ function LayoutCard({ layout, onSave }: { layout: TileLayout; onSave: () => void
           {saving ? '…' : saved ? '✅' : '💾'}
         </button>
       </div>
+      <p className="mt-2 text-xs text-gray-400">
+        Customers who add this many {layout.label} products to their order get the discount % off. Leave quantity blank to turn off.
+      </p>
       {error && (
         <div className="mt-2 text-red-600 text-xs font-semibold">⚠️ {error}</div>
       )}

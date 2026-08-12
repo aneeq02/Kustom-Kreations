@@ -6,11 +6,11 @@ import * as THREE from 'three';
 
 // ─── Scene constants ──────────────────────────────────────────────────────────
 
-const DOOR = { w: 3.8, h: 7.2, d: 0.13 };
+const DOOR = { w: 3.8, h: 8.2, d: 0.63 };
 
 // Maximum space on the door that the magnet grid can use
-const MAX_GRID = { w: 2.5, h: 4.8 };
-const MAGNET_GAP = 0.07;
+const MAX_GRID = { w: 1.5, h: 3.8 };
+const MAGNET_GAP = 0.01;
 const MAGNET_DEPTH = 0.038;
 const MAX_SINGLE_SIZE = 1.55; // cap for 1×1 so it doesn't fill the whole door
 
@@ -274,17 +274,17 @@ export default function FridgePreview3D({
 }: FridgePreview3DProps) {
   return (
     <div
-      className="rounded-[18px] overflow-hidden shadow-2xl"
+      className="rounded-[18px] overflow-hidden"
       style={{
-        width: canvasSize,
-        height: canvasSize,
-        background: 'linear-gradient(155deg, #E8ECF0 0%, #D2D8DF 100%)',
+        width: '100%',
+        maxWidth: canvasSize,
+        aspectRatio: '1 / 1',
       }}
     >
       <Canvas
         shadows
         camera={{ fov: 48, position: [0, 0.35, 8.8], near: 0.1, far: 100 }}
-        gl={{ antialias: true }}
+        gl={{ antialias: true, alpha: true }}
         style={{ background: 'transparent' }}
       >
         <Scene textureUrl={textureUrl} rows={rows} cols={cols} />

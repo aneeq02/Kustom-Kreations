@@ -19,6 +19,7 @@ export interface ApiTileLayout {
   active: boolean;
   badge: string | null;
   bulkDiscountPct: number;
+  bulkDiscountQty: number | null;
   sortOrder: number;
 }
 
@@ -46,7 +47,20 @@ export const DEFAULT_PRINT_CONFIG: ApiPrintConfig = {
 export function calcSetPrice(layout: ApiTileLayout, size: ApiMagnetSize): number {
   const count = layout.rows * layout.cols;
   if (count === 0) return size.pricePerMagnet;
-  return Math.round(size.pricePerMagnet * count * (1 - layout.bulkDiscountPct / 100) * 100) / 100;
+  return Math.round(size.pricePerMagnet * count * 100) / 100;
+}
+
+// A layout's bulk discount only applies once enough *products* of that
+// layout are in the order (bulkDiscountQty), not based on magnet count.
+export function layoutBulkDiscountQualifies(layout: ApiTileLayout, numProducts: number): boolean {
+  return !!layout.bulkDiscountQty && numProducts >= layout.bulkDiscountQty;
+}
+
+// For the cart/checkout pages, which only need { qty, pct } keyed by slug.
+export function buildLayoutDiscountMap(layouts: ApiTileLayout[]): Map<string, { qty: number | null; pct: number }> {
+  const map = new Map<string, { qty: number | null; pct: number }>();
+  for (const l of layouts) map.set(l.slug, { qty: l.bulkDiscountQty, pct: l.bulkDiscountPct });
+  return map;
 }
 
 export function perMagnetPrice(layout: ApiTileLayout, size: ApiMagnetSize): number {

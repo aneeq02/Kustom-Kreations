@@ -4,7 +4,7 @@ import pool from '../db/pool';
 const router = Router();
 
 router.post('/validate', async (req: Request, res: Response) => {
-  const { code, subtotal, currency } = req.body;
+  const { code, subtotal } = req.body;
   if (!code) return res.status(400).json({ error: 'Code required' });
 
   const now = new Date();
@@ -21,12 +21,11 @@ router.post('/validate', async (req: Request, res: Response) => {
 
   const dc = result.rows[0];
   const sub = parseFloat(subtotal || '0');
-  const curr = currency || 'GBP';
-  const minOrder = curr === 'EUR' ? dc.min_order_eur : dc.min_order_gbp;
+  const minOrder = dc.min_order_gbp;
 
   if (minOrder && sub < parseFloat(minOrder)) {
     return res.status(400).json({
-      error: `Minimum order of ${curr} ${parseFloat(minOrder).toFixed(2)} required for this code`,
+      error: `Minimum order of £${parseFloat(minOrder).toFixed(2)} required for this code`,
     });
   }
 
@@ -34,9 +33,7 @@ router.post('/validate', async (req: Request, res: Response) => {
   if (dc.type === 'percent') {
     discountAmount = (sub * parseFloat(dc.value)) / 100;
   } else if (dc.type === 'fixed_gbp') {
-    discountAmount = curr === 'GBP' ? Math.min(parseFloat(dc.value), sub) : 0;
-  } else if (dc.type === 'fixed_eur') {
-    discountAmount = curr === 'EUR' ? Math.min(parseFloat(dc.value), sub) : 0;
+    discountAmount = Math.min(parseFloat(dc.value), sub);
   } else if (dc.type === 'free_shipping') {
     discountAmount = 0; // handled at checkout
   }

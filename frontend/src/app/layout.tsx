@@ -23,7 +23,7 @@ export const metadata: Metadata = {
     default: 'Kustom Kreations — Personalised Photo Magnets',
     template: '%s | Kustom Kreations',
   },
-  description: 'Create beautiful personalised 50mm photo magnets from your favourite memories. Upload, preview, and order in minutes. Ships to UK, Isle of Man & Ireland.',
+  description: 'Create beautiful personalised 50mm photo magnets from your favourite memories. Upload, preview, and order in minutes. Ships to UK & Isle of Man.',
   keywords: ['photo magnets', 'personalised magnets', 'custom magnets', 'photo gifts', 'fridge magnets'],
   openGraph: {
     type: 'website',

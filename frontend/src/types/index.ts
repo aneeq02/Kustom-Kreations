@@ -9,7 +9,6 @@ export interface Product {
   warnDpi: number;
   targetDpi: number;
   basePriceGbp: number;
-  basePriceEur: number;
   displayImageKey?: string;
   discountTiers: BulkDiscountTier[];
 }
@@ -39,7 +38,7 @@ export interface CartItem {
   quantity: number;
   unitPrice: number;
   discountPct: number;
-  currency: 'GBP' | 'EUR';
+  currency: 'GBP';
   imageQuality: 'good' | 'warn' | 'blocked';
   imageDpi: number;
   tileConfig?: TileConfig;  // present for tiled multi-magnet sets
@@ -74,7 +73,7 @@ export interface ShippingAddress {
   city: string;
   county?: string;
   postcode: string;
-  country: 'GB' | 'IM' | 'IE';
+  country: 'GB' | 'IM';
 }
 
 export interface Order {

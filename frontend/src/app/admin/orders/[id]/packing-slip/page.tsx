@@ -38,7 +38,6 @@ interface OrderDetail {
 const COUNTRY_NAMES: Record<string, string> = {
   GB: 'United Kingdom',
   IM: 'Isle of Man',
-  IE: 'Republic of Ireland',
 };
 
 export default function PackingSlipPage({ params }: { params: Promise<{ id: string }> }) {
@@ -114,9 +113,12 @@ export default function PackingSlipPage({ params }: { params: Promise<{ id: stri
 
           {/* Header */}
           <div className="flex items-start justify-between mb-6 pb-4 border-b-2 border-gray-800">
-            <div>
-              <div className="text-2xl font-bold tracking-tight">KUSTOM KREATIONS</div>
-              <div className="text-gray-500 text-sm mt-0.5">kustomkreations.co.uk</div>
+            <div className="flex items-center gap-3">
+              <img src="/logo-black.png" alt="Kustom Kreations" className="w-14 h-14" />
+              <div>
+                <div className="text-2xl font-bold tracking-tight">KUSTOM KREATIONS</div>
+                <div className="text-gray-500 text-sm mt-0.5">kustomkreations.co.uk</div>
+              </div>
             </div>
             <div className="text-right">
               <div className="text-xs text-gray-500 uppercase tracking-widest">Packing Slip</div>

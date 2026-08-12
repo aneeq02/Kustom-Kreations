@@ -17,7 +17,6 @@ export default function ShippingPage() {
             {[
               { region: 'UK Mainland', methods: ['Standard (3–5 days)', 'Express (1–2 days)'], note: 'Free standard shipping on orders over £35' },
               { region: 'Isle of Man', methods: ['Standard (4–7 days)'], note: '' },
-              { region: 'Republic of Ireland', methods: ['Standard (5–7 days)'], note: 'Prices displayed in EUR' },
             ].map(({ region, methods, note }) => (
               <div key={region} className="border-b border-coral-light/40 pb-4 last:border-0">
                 <div className="font-semibold text-navy mb-1">{region}</div>

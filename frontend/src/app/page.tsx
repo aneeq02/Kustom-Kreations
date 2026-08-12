@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { motion, useInView, useScroll, useTransform } from 'framer-motion';
+import { motion, useScroll, useTransform } from 'framer-motion';
 import { useRef, useState, useEffect } from 'react';
 
 interface MagnetSize {
@@ -50,29 +50,6 @@ const HERO_MAGNETS = [
   { bg: 'linear-gradient(135deg,#D9F99D,#86EFAC)', rot: -1, delay: 0.42 },
 ];
 
-// ── Animated counter ───────────────────────────────────────────
-function AnimatedCounter({ to, suffix = '' }: { to: number; suffix?: string }) {
-  const ref = useRef<HTMLSpanElement>(null);
-  const inView = useInView(ref, { once: true, margin: '-40px' });
-  const [value, setValue] = useState(0);
-
-  useEffect(() => {
-    if (!inView) return;
-    let start = 0;
-    const duration = 1800;
-    const step = 16;
-    const increment = to / (duration / step);
-    const timer = setInterval(() => {
-      start += increment;
-      if (start >= to) { setValue(to); clearInterval(timer); }
-      else setValue(Math.floor(start));
-    }, step);
-    return () => clearInterval(timer);
-  }, [inView, to]);
-
-  return <span ref={ref}>{inView ? value.toLocaleString() : 0}{suffix}</span>;
-}
-
 // ── Product showcase "video" scene ─────────────────────────────
 const SCENE_MAGNETS = [
   { bg: '#FDE68A', top: '8%',  left: '10%', rot: -4, delay: 0.2 },
@@ -89,7 +66,6 @@ const SCENE_MAGNETS = [
 export default function HomePage() {
   const heroRef = useRef<HTMLElement>(null);
   const { scrollYProgress } = useScroll({ target: heroRef, offset: ['start start', 'end start'] });
-  const heroY = useTransform(scrollYProgress, [0, 1], ['0%', '20%']);
   const heroOpacity = useTransform(scrollYProgress, [0, 0.6], [1, 0]);
 
   const [magnetSizes, setMagnetSizes] = useState<MagnetSize[]>([]);
@@ -104,10 +80,13 @@ export default function HomePage() {
     <div className="flex flex-col overflow-x-hidden">
 
       {/* ━━━━━━━━━━ HERO ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-      <section
+      <motion.section
         ref={heroRef}
-        className="relative min-h-screen flex items-center overflow-hidden"
-        style={{ background: 'linear-gradient(135deg, #0C1A0C 0%, #162816 60%, #0F1F0F 100%)' }}
+        style={{
+          background: 'linear-gradient(135deg, #0C1A0C 0%, #162816 60%, #0F1F0F 100%)',
+          opacity: heroOpacity,
+        }}
+        className="relative h-screen flex items-center overflow-hidden"
       >
         {/* Ambient glow orbs */}
         <div className="absolute top-[-10%] right-[-5%] w-[600px] h-[600px] rounded-full pointer-events-none"
@@ -115,37 +94,41 @@ export default function HomePage() {
         <div className="absolute bottom-[-10%] left-[-5%] w-[500px] h-[500px] rounded-full pointer-events-none"
           style={{ background: 'radial-gradient(circle, rgba(91,142,125,0.1) 0%, transparent 70%)' }} />
 
-        <motion.div
-          style={{ y: heroY, opacity: heroOpacity }}
-          className="relative max-w-7xl mx-auto px-5 sm:px-8 w-full pt-24 pb-16 lg:py-24 grid lg:grid-cols-2 gap-10 lg:gap-16 items-center"
-        >
+        <div className="relative max-w-7xl mx-auto px-5 sm:px-8 w-full py-8 sm:py-10 grid lg:grid-cols-2 gap-10 lg:gap-16 items-center">
           {/* Left: Copy */}
           <div>
             <motion.h1
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.7, delay: 0.2, ease: EASE_OUT }}
-              className="text-[2.2rem] sm:text-5xl lg:text-6xl xl:text-7xl font-heading font-bold text-white leading-[1.1] mb-5"
+              className="text-[1.9rem] sm:text-4xl lg:text-5xl xl:text-6xl font-heading font-bold text-white leading-[1.15] mb-4"
             >
-              Turn memories into{' '}
-              <span className="text-gradient-gold">treasured</span>
-              {' '}keepsakes
+              Bring Your Favourite Memories to{' '}
+              <span className="text-gradient-gold">Life</span>
             </motion.h1>
 
             <motion.p
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.35 }}
-              className="text-white/60 text-lg leading-relaxed mb-8 max-w-lg"
+              className="text-white/60 text-base sm:text-lg leading-relaxed mb-4 max-w-xl"
             >
-              Upload any photo, choose a beautiful template, and receive stunning handcrafted magnets at your door. Simple enough for any age, beautiful enough for any home.
+              Give your kitchen a personal touch with beautiful photo magnets made from the moments you love most. Whether it’s a favourite family photo, a special celebration, a memorable holiday or your four-legged friend’s funniest face, turn those precious memories into something you can see every day.
+            </motion.p>
+
+            <motion.p
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.42 }}
+              className="text-white/60 text-base sm:text-lg leading-relaxed mb-8 max-w-xl"
+            >
+              Perfect for your own fridge or as a thoughtful gift, personalised photo magnets are a lovely way to keep special moments close. Forget the usual holiday souvenir, create a unique keepsake from a photo that means something to you and enjoy that memory every time you walk into the kitchen.
             </motion.p>
 
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.45 }}
-              className="flex flex-col sm:flex-row gap-3 mb-8"
+              transition={{ duration: 0.5, delay: 0.5 }}
             >
               <Link
                 href="/start"
@@ -157,31 +140,6 @@ export default function HomePage() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
                 </svg>
               </Link>
-              <Link
-                href="#showcase"
-                className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-2xl font-medium text-white/70 hover:text-white transition-all glass w-full sm:w-auto"
-              >
-                See it in action
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                </svg>
-              </Link>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.6 }}
-              className="flex flex-wrap gap-5 text-sm text-white/40"
-            >
-              {['Free UK delivery over £15', 'Next-day dispatch available', 'Ships to UK, IoM & Ireland'].map(t => (
-                <span key={t} className="flex items-center gap-1.5">
-                  <svg className="w-3.5 h-3.5 text-coral" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
-                  </svg>
-                  {t}
-                </span>
-              ))}
             </motion.div>
           </div>
 
@@ -212,26 +170,37 @@ export default function HomePage() {
               ))}
             </motion.div>
           </div>
-        </motion.div>
+        </div>
 
-      </section>
+      </motion.section>
 
-      {/* ━━━━━━━━━━ STATS BAR ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-      <section className="bg-white border-b border-border">
-        <div className="max-w-5xl mx-auto px-4 py-10 grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
-          {[
-            { value: 25000, suffix: '+', label: 'Happy customers' },
-            { value: 150000, suffix: '+', label: 'Magnets printed' },
-            { value: 3, suffix: '', label: 'Countries shipping' },
-            { value: 98, suffix: '%', label: 'Five-star reviews' },
-          ].map(({ value, suffix, label }) => (
-            <motion.div key={label} {...fadeIn(0.1)}>
-              <div className="text-3xl md:text-4xl font-heading font-bold text-gradient-gold mb-1">
-                <AnimatedCounter to={value} suffix={suffix} />
-              </div>
-              <div className="text-sm text-text-secondary font-medium">{label}</div>
-            </motion.div>
-          ))}
+      {/* ━━━━━━━━━━ MAGNET IDEAS ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+      <section className="bg-cream border-b border-border">
+        <div className="max-w-3xl mx-auto px-4 py-12 text-center">
+          <motion.p
+            {...fadeIn(0.1)}
+            className="text-navy text-lg md:text-xl font-heading font-semibold mb-6"
+          >
+            Turning the photos in your phone into long-lasting memories
+          </motion.p>
+          <motion.div {...fadeIn(0.2)} className="flex flex-wrap justify-center gap-2.5">
+            {[
+              { icon: '👨‍👩‍👧', label: 'Family photos' },
+              { icon: '🐾', label: 'Pet portraits' },
+              { icon: '🎉', label: 'Celebrations' },
+              { icon: '✈️', label: 'Holidays & travel' },
+              { icon: '💍', label: 'Milestones' },
+              { icon: '🎁', label: 'Thoughtful gifts' },
+            ].map(idea => (
+              <span
+                key={idea.label}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-cream shadow-[inset_0_2px_5px_rgba(28,31,26,0.28),inset_0_-1px_1px_rgba(255,255,255,0.5)] text-sm font-semibold text-navy"
+              >
+                <span className="text-base leading-none">{idea.icon}</span>
+                {idea.label}
+              </span>
+            ))}
+          </motion.div>
         </div>
       </section>
 
@@ -316,10 +285,6 @@ export default function HomePage() {
                 />
               ))}
 
-              {/* Label */}
-              <div className="absolute bottom-4 right-4 glass rounded-xl px-4 py-2 text-sm text-white/70">
-                50mm × 50mm
-              </div>
             </motion.div>
           </div>
         </div>
@@ -331,7 +296,7 @@ export default function HomePage() {
           <motion.div {...fadeUp()} className="text-center mb-16">
             <p className="text-coral text-sm font-medium uppercase tracking-widest mb-3">Effortlessly simple</p>
             <h2 className="text-4xl md:text-5xl font-heading font-bold text-navy mb-4">Order in under 3 minutes</h2>
-            <p className="text-text-secondary text-lg max-w-xl mx-auto">
+            <p className="text-text-secondary text-lg mx-auto">
               Simple enough for a 10-year-old, beautiful enough for an 80-year-old.
             </p>
           </motion.div>
@@ -339,7 +304,7 @@ export default function HomePage() {
           <div className="grid md:grid-cols-3 gap-8">
             {[
               { n: '01', icon: '📤', title: 'Upload your photo', desc: "Choose any photo from your phone, tablet or computer. We instantly check it's high enough quality for a crisp, professional print.", color: '#FDE68A' },
-              { n: '02', icon: '✨', title: 'Design your magnet', desc: 'Pick from 45+ seasonal template frames, add a personal text message, and reposition your photo using our easy drag-and-drop canvas.', color: '#F9A8D4' },
+              { n: '02', icon: '✨', title: 'Design your magnet', desc: 'Crop, zoom and position your photo exactly how you want it using our simple drag-and-drop canvas — see a live preview before you order.', color: '#F9A8D4' },
               { n: '03', icon: '📬', title: 'Delivered to your door', desc: 'Order before 2pm for next-day dispatch. Every order arrives beautifully gift-boxed and ready to give as a present.', color: '#A5F3FC' },
             ].map(({ n, icon, title, desc, color }, i) => (
               <motion.div key={n} {...fadeUp(i * 0.12)}>
@@ -493,7 +458,7 @@ export default function HomePage() {
                 </svg>
               </Link>
 
-              <p className="mt-6 text-white/25 text-sm">Delivered to UK, Isle of Man & Republic of Ireland</p>
+              <p className="mt-6 text-white/25 text-sm">Delivered to UK & Isle of Man</p>
             </div>
           </motion.div>
         </div>

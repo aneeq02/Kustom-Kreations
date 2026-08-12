@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCart } from '@/context/CartContext';
@@ -9,18 +9,15 @@ import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
 import { api } from '@/lib/api';
-import { calcCartTotals, formatPrice, getApplicableTier } from '@/lib/pricing';
+import { calcCartTotals, formatPrice, roundToCharmPrice, buildLayoutGroupQty, getItemBulkDiscountPct, type LayoutDiscountMap } from '@/lib/pricing';
+import { buildLayoutDiscountMap, type MagnetProductConfig } from '@/lib/tiledProducts';
 import { DiscountValidation, VoucherValidation } from '@/types';
 
-const TIERS = [
-  { id: '1', minQty: 5, maxQty: 9, discountPct: 10, label: 'Buy 5–9, save 10%' },
-  { id: '2', minQty: 10, maxQty: 19, discountPct: 15, label: 'Buy 10–19, save 15%' },
-  { id: '3', minQty: 20, maxQty: null, discountPct: 20, label: 'Buy 20+, save 20%' },
-];
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
 
 export default function CartPage() {
   const router = useRouter();
-  const { items, removeItem, updateQuantity, totalItems } = useCart();
+  const { items, removeItem, updateQuantity } = useCart();
   const [promoCode, setPromoCode] = useState('');
   const [voucherCode, setVoucherCode] = useState('');
   const [appliedDiscount, setAppliedDiscount] = useState<DiscountValidation | null>(null);
@@ -29,11 +26,20 @@ export default function CartPage() {
   const [voucherLoading, setVoucherLoading] = useState(false);
   const [promoError, setPromoError] = useState('');
   const [voucherError, setVoucherError] = useState('');
+  const [layoutDiscounts, setLayoutDiscounts] = useState<LayoutDiscountMap | undefined>(undefined);
 
-  const { subtotal } = calcCartTotals(items);
+  useEffect(() => {
+    fetch(`${API_BASE}/magnets/config`)
+      .then(r => r.json())
+      .then((cfg: MagnetProductConfig) => setLayoutDiscounts(buildLayoutDiscountMap(cfg.layouts)))
+      .catch(() => {});
+  }, []);
+
+  const { subtotal } = calcCartTotals(items, layoutDiscounts);
+  const groupQty = buildLayoutGroupQty(items);
   const discountAmt = appliedDiscount ? parseFloat(appliedDiscount.discountAmount) : 0;
   const voucherAmt = appliedVoucher ? Math.min(parseFloat(appliedVoucher.balance), subtotal - discountAmt) : 0;
-  const estimatedTotal = Math.max(0, subtotal - discountAmt - voucherAmt);
+  const estimatedTotal = roundToCharmPrice(Math.max(0, subtotal - discountAmt - voucherAmt));
 
   // Total physical magnets (sets count their tiles × quantity)
   const magnetCount = items.reduce((sum, item) => {
@@ -100,8 +106,7 @@ export default function CartPage() {
         {/* Items */}
         <div className="lg:col-span-2 flex flex-col gap-4">
           {items.map(item => {
-            const tier = getApplicableTier(totalItems, TIERS);
-            const disc = tier?.discountPct ?? 0;
+            const disc = layoutDiscounts ? getItemBulkDiscountPct(item, groupQty, layoutDiscounts) : 0;
             const lineTotal = item.unitPrice * item.quantity * (1 - disc / 100);
 
             return (
@@ -117,13 +122,13 @@ export default function CartPage() {
                   )}
                   <div className="flex items-center gap-2 mt-2">
                     <button
-                      onClick={() => updateQuantity(item.id, Math.max(1, item.quantity - 1), TIERS)}
+                      onClick={() => updateQuantity(item.id, Math.max(1, item.quantity - 1))}
                       disabled={item.quantity <= 1}
                       className="w-7 h-7 rounded-full bg-coral-light text-coral font-bold flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed"
                     >−</button>
                     <span className="font-bold text-navy w-6 text-center">{item.quantity}</span>
                     <button
-                      onClick={() => updateQuantity(item.id, item.quantity + 1, TIERS)}
+                      onClick={() => updateQuantity(item.id, item.quantity + 1)}
                       className="w-7 h-7 rounded-full bg-coral-light text-coral font-bold flex items-center justify-center"
                     >+</button>
                   </div>
