@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { adminFetch, saveAdminPin, clearAdminPin, ADMIN_PIN_KEY } from '@/lib/adminApi';
+import NewOrderAlert from '@/components/admin/NewOrderAlert';
 
 // ── Navigation items ──────────────────────────────────────────────────────────
 
@@ -211,6 +212,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
+      <NewOrderAlert />
       <Sidebar
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}

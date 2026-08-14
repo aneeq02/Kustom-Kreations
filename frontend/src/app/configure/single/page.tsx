@@ -9,6 +9,7 @@ import { useCart } from '@/context/CartContext';
 import { Button } from '@/components/ui/Button';
 import { uploadImage } from '@/lib/api';
 import { formatPrice } from '@/lib/pricing';
+import { takePendingFiles } from '@/lib/pendingUpload';
 import {
   checkTileQuality,
   estimateDpi,
@@ -185,6 +186,13 @@ function SingleDesignerContent() {
     else setActiveIndex(photos.length); // jump to the first newly added photo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [photos.length, uploadOneFile]);
+
+  // Photos handed off from the /configure upload sheet (Start Creating flow)
+  useEffect(() => {
+    const files = takePendingFiles();
+    if (files && files.length) handleFiles(files);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const removePhoto = (index: number) => {
     setPhotos(prev => prev.filter((_, i) => i !== index));
@@ -538,7 +546,7 @@ function SingleDesignerContent() {
                 <div className="flex items-baseline justify-between">
                   <span className="text-sm text-text-secondary">from</span>
                   <span className="text-2xl font-heading font-bold text-coral">
-                    {formatPrice(unitPrice)}
+                    {formatPrice(0)}
                   </span>
                 </div>
                 <p className="text-xs text-text-secondary text-center">Upload a photo to continue</p>

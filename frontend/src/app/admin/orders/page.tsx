@@ -6,7 +6,6 @@ import { adminGet, adminPatch } from '@/lib/adminApi';
 
 const STATUSES = [
   { value: '',               label: 'All Orders' },
-  { value: 'pending',        label: '⏳ New' },
   { value: 'paid',           label: '✅ Paid' },
   { value: 'in_production',  label: '🔨 Making' },
   { value: 'dispatched',     label: '🚚 Shipped' },

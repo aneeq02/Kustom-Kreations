@@ -38,13 +38,15 @@ interface MagnetProps {
 function Magnet({ baseTexture, r, c, rows, cols, size, x, y }: MagnetProps) {
   const z = DOOR.d / 2 + MAGNET_DEPTH / 2 + 0.002;
 
-  // Front face material — UV-sliced from base texture
-  const [frontMat, setFrontMat] = useState<THREE.MeshStandardMaterial>(() =>
-    new THREE.MeshStandardMaterial({ color: '#DEDEDE', roughness: 0.35, metalness: 0 }),
+  // Front face material — UV-sliced from base texture.
+  // Unlit (MeshBasicMaterial) so the photo renders at its true colour,
+  // matching the flat 2D grid preview instead of being shaded by scene lighting.
+  const [frontMat, setFrontMat] = useState<THREE.MeshBasicMaterial>(() =>
+    new THREE.MeshBasicMaterial({ color: '#DEDEDE' }),
   );
 
   useEffect(() => {
-    const mat = new THREE.MeshStandardMaterial({ roughness: 0.15, metalness: 0.0 });
+    const mat = new THREE.MeshBasicMaterial();
     if (baseTexture) {
       const t = baseTexture.clone();
       // UV math: flipY=true is default, so V=1 is top of image

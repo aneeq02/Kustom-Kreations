@@ -8,16 +8,16 @@ import Link from 'next/link';
 type Step = 'name' | 'email' | 'referral' | 'done';
 
 const REFERRAL_OPTIONS = [
-  { id: 'google',        label: 'Google',             icon: '🔍' },
-  { id: 'instagram',     label: 'Instagram',          icon: '📸' },
-  { id: 'facebook',      label: 'Facebook',           icon: '👍' },
-  { id: 'tiktok',        label: 'TikTok',             icon: '🎵' },
-  { id: 'word_of_mouth', label: 'Friend or family',   icon: '👥' },
-  { id: 'leaflet',       label: 'Leaflet / Flyer',    icon: '📮' },
-  { id: 'local_press',   label: 'Local press',        icon: '🗞️' },
-  { id: 'shop',          label: 'Saw it in a shop',   icon: '🛍️' },
-  { id: 'email',         label: 'Email newsletter',   icon: '✉️' },
-  { id: 'other',         label: 'Something else',     icon: '✨' },
+  { id: 'google',        label: 'Google' },
+  { id: 'instagram',     label: 'Instagram' },
+  { id: 'facebook',      label: 'Facebook' },
+  { id: 'tiktok',        label: 'TikTok' },
+  { id: 'word_of_mouth', label: 'Friend or family' },
+  { id: 'leaflet',       label: 'Leaflet / Flyer' },
+  { id: 'local_press',   label: 'Local press' },
+  { id: 'shop',          label: 'Saw it in a shop' },
+  { id: 'email',         label: 'Email newsletter' },
+  { id: 'other',         label: 'Something else' },
 ];
 
 const STEP_INDEX: Record<Step, number> = { name: 0, email: 1, referral: 2, done: 3 };
@@ -250,9 +250,8 @@ export default function StartPage() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.04, duration: 0.2 }}
                     onClick={() => submitReferral(opt.id)}
-                    className="flex items-center gap-3 px-4 py-3 rounded-xl text-left border-2 border-border bg-white hover:border-coral hover:bg-coral-light/40 hover:-translate-y-0.5 transition-all group"
+                    className="flex items-center px-4 py-3 rounded-xl text-left border-2 border-border bg-white hover:border-coral hover:bg-coral-light/40 hover:-translate-y-0.5 transition-all group"
                   >
-                    <span className="text-2xl leading-none">{opt.icon}</span>
                     <span className="text-sm font-semibold text-navy group-hover:text-coral leading-tight">
                       {opt.label}
                     </span>

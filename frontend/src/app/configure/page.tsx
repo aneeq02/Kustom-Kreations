@@ -1,10 +1,12 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
+import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/Button';
+import BottomSheet from '@/components/configurator/BottomSheet';
+import { setPendingFiles } from '@/lib/pendingUpload';
 import {
-  calcSetPrice,
   type ApiMagnetSize,
   type ApiTileLayout,
   type MagnetProductConfig,
@@ -14,6 +16,8 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
 
 // Soft glow ring shown around whichever size/layout card is currently selected
 const SELECTED_GLOW = 'shadow-[0_0_0_3px_rgba(205,171,160,0.45),0_0_18px_4px_rgba(205,171,160,0.65)]';
+
+type Stage = 'idle' | 'picking' | 'uploading';
 
 function GridIcon({ rows, cols, active }: { rows: number; cols: number; active: boolean }) {
   const r = Math.max(rows, 1);
@@ -48,8 +52,11 @@ function SkeletonCard() {
   );
 }
 
-function SelectionContent() {
+function ConfigureWizard() {
   const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [stage, setStage] = useState<Stage>('idle');
   const [config, setConfig] = useState<MagnetProductConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedSize, setSelectedSize] = useState<ApiMagnetSize | null>(null);
@@ -73,7 +80,9 @@ function SelectionContent() {
       .finally(() => setLoading(false));
   }, []);
 
-  const handleContinue = () => {
+  const count = selectedLayout ? selectedLayout.rows * selectedLayout.cols : 0;
+
+  const goToDesigner = () => {
     if (!selectedSize || !selectedLayout) return;
     if (selectedLayout.slug === '1x1') {
       router.push(`/configure/single?size=${selectedSize.sizeMm}`);
@@ -82,31 +91,53 @@ function SelectionContent() {
     }
   };
 
-  const count = selectedLayout ? selectedLayout.rows * selectedLayout.cols : 0;
+  const handleFilesChosen = (fileList: FileList | null) => {
+    if (!fileList || !fileList.length) return;
+    setPendingFiles(Array.from(fileList));
+    goToDesigner();
+  };
 
   return (
-    <div className="max-w-2xl mx-auto">
-      <div className="text-center mb-10">
-        <h1 className="font-heading text-3xl sm:text-4xl font-bold text-navy mb-3">
-          Create Your Photo Magnet
-        </h1>
-        <p className="text-text-secondary max-w-md mx-auto">
-          Upload a photo, pick your size and layout, and we'll print and post your magnets.
-        </p>
-      </div>
+    <div className="min-h-screen bg-cream flex flex-col items-center justify-center px-4">
+      {/* ── Breathing "Start Creating" entry point ─────────────────── */}
+      <button
+        onClick={() => setStage('picking')}
+        className="flex flex-col items-center gap-5 group"
+      >
+        <motion.div
+          animate={{ scale: [1, 1.06, 1] }}
+          transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
+          className="w-32 h-32 rounded-full bg-white shadow-xl shadow-coral/20 flex items-center justify-center group-hover:shadow-coral/30 group-active:scale-95 transition-shadow"
+        >
+          <svg className="w-12 h-12 text-coral" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <path strokeLinecap="round" d="M12 5v14M5 12h14" />
+          </svg>
+        </motion.div>
+        <span className="font-heading font-bold text-navy text-lg tracking-tight">
+          Start Creating
+        </span>
+      </button>
 
-      {/* ── Size selection ─────────────────────────────── */}
-      <section className="mb-8">
-        <h2 className="text-xs font-bold text-navy uppercase tracking-widest mb-3">
-          Magnet Size
+      {/* ── Sheet 1: product picker ─────────────────────────────────── */}
+      <BottomSheet open={stage === 'picking'} onClose={() => setStage('idle')}>
+        <h2 className="font-heading text-xl font-bold text-navy mb-1">
+          Choose your magnets
         </h2>
+        <p className="text-text-secondary text-sm mb-6">
+          Pick a size and layout — you'll upload your photo next.
+        </p>
+
+        {/* Size */}
+        <h3 className="text-xs font-bold text-navy uppercase tracking-widest mb-3">
+          Magnet Size
+        </h3>
         {loading ? (
-          <div className="flex gap-3">
+          <div className="flex gap-3 mb-7">
             <SkeletonCard />
             <SkeletonCard />
           </div>
         ) : (
-          <div className="flex gap-3">
+          <div className="flex gap-3 mb-7">
             {config?.sizes.filter(s => s.active).map(s => (
               <button
                 key={s.id}
@@ -118,152 +149,121 @@ function SelectionContent() {
                 }`}
               >
                 <div className="font-bold text-base">{s.label}</div>
-                <div
-                  className={`text-xs mt-0.5 ${
-                    selectedSize?.id === s.id ? 'text-white/80' : 'text-text-secondary'
-                  }`}
-                >
-                  from £{s.pricePerMagnet.toFixed(2)} each
-                </div>
               </button>
             ))}
           </div>
         )}
-      </section>
 
-      {/* ── Layout selection ───────────────────────────── */}
-      <section className="mb-8">
-        <h2 className="text-xs font-bold text-navy uppercase tracking-widest mb-3">
+        {/* Layout */}
+        <h3 className="text-xs font-bold text-navy uppercase tracking-widest mb-3">
           Layout
-        </h2>
+        </h3>
         {loading ? (
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3 mb-7">
             {[0, 1, 2, 3].map(i => (
               <div key={i} className="h-32 rounded-xl bg-ivory animate-pulse" />
             ))}
           </div>
         ) : (
-          <>
-            <div className="grid grid-cols-2 gap-3">
-              {config?.layouts.filter(l => l.active && l.slug !== 'custom' && l.rows > 0).map(l => {
-                const lCount = l.rows * l.cols;
-                const lPrice = selectedSize ? calcSetPrice(l, selectedSize) : 0;
-                const isSelected = selectedLayout?.id === l.id;
-                return (
-                  <button
-                    key={l.id}
-                    onClick={() => setSelectedLayout(l)}
-                    className={`relative p-4 rounded-xl border-2 text-left transition-all ${
-                      isSelected
-                        ? `border-coral bg-coral text-white ${SELECTED_GLOW}`
-                        : 'border-coral-light bg-white text-navy hover:border-coral/50 hover:shadow-sm'
-                    }`}
-                  >
-                    {l.badge && (
-                      <span
-                        className={`absolute top-2.5 right-2.5 text-xs font-bold px-2 py-0.5 rounded-full ${
-                          isSelected ? 'bg-white/25 text-white' : 'bg-coral-light text-coral'
-                        }`}
-                      >
-                        {l.badge}
-                      </span>
-                    )}
-                    <div className="mb-3">
-                      <GridIcon rows={l.rows} cols={l.cols} active={isSelected} />
-                    </div>
-                    <div className="font-bold text-base">{l.label}</div>
-                    <div
-                      className={`text-xs mt-0.5 ${
-                        isSelected ? 'text-white/80' : 'text-text-secondary'
+          <div className="grid grid-cols-2 gap-3 mb-7">
+            {config?.layouts.filter(l => l.active && l.slug !== 'custom' && l.rows > 0).map(l => {
+              const isSelected = selectedLayout?.id === l.id;
+              return (
+                <button
+                  key={l.id}
+                  onClick={() => setSelectedLayout(l)}
+                  className={`relative p-4 rounded-xl border-2 text-left transition-all ${
+                    isSelected
+                      ? `border-coral bg-coral text-white ${SELECTED_GLOW}`
+                      : 'border-coral-light bg-white text-navy hover:border-coral/50 hover:shadow-sm'
+                  }`}
+                >
+                  {l.badge && (
+                    <span
+                      className={`absolute top-2.5 right-2.5 text-xs font-bold px-2 py-0.5 rounded-full ${
+                        isSelected ? 'bg-white/25 text-white' : 'bg-coral-light text-coral'
                       }`}
                     >
-                      {l.description}
-                    </div>
-                    {selectedSize && lCount > 0 && (
-                      <div
-                        className={`text-sm font-bold mt-2.5 ${
-                          isSelected ? 'text-white' : 'text-coral'
-                        }`}
-                      >
-                        £{lPrice.toFixed(2)}
-                        {l.bulkDiscountPct > 0 && (
-                          <span
-                            className={`text-xs ml-1.5 ${
-                              isSelected ? 'text-white/70' : 'text-green-600'
-                            }`}
-                          >
-                            (save {l.bulkDiscountPct}%)
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Coming soon */}
-            {config?.layouts.filter(l => !l.active && l.slug !== 'custom' && l.rows > 0).length ? (
-              <div className="mt-3 grid grid-cols-3 gap-2">
-                {config.layouts.filter(l => !l.active && l.slug !== 'custom' && l.rows > 0).map(l => (
-                  <div
-                    key={l.id}
-                    className="p-3 rounded-xl border-2 border-dashed border-coral-light/40 bg-cream/50 opacity-55"
-                  >
-                    <div className="mb-2">
-                      <GridIcon rows={l.rows} cols={l.cols} active={false} />
-                    </div>
-                    <div className="font-semibold text-navy text-sm">{l.label}</div>
-                    <div className="text-xs text-text-secondary mt-0.5">Coming soon</div>
+                      {l.badge}
+                    </span>
+                  )}
+                  <div className="mb-3">
+                    <GridIcon rows={l.rows} cols={l.cols} active={isSelected} />
                   </div>
-                ))}
-              </div>
-            ) : null}
-          </>
+                  <div className="font-bold text-base">{l.label}</div>
+                  <div
+                    className={`text-xs mt-0.5 ${
+                      isSelected ? 'text-white/80' : 'text-text-secondary'
+                    }`}
+                  >
+                    {l.description}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         )}
-      </section>
 
-      {/* ── Summary + CTA ──────────────────────────────── */}
-      <div className="bg-white rounded-2xl border border-coral-light/40 p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        {loading || !selectedSize || !selectedLayout ? (
-          <div className="h-12 flex-1 bg-ivory rounded-xl animate-pulse" />
-        ) : (
-          <>
-            <div>
-              <div className="font-semibold text-navy text-sm">
-                {count > 1
-                  ? `${count} × ${selectedSize.label} magnets`
-                  : `1 × ${selectedSize.label} magnet`}
-              </div>
-            </div>
-            <Button
-              size="lg"
-              onClick={handleContinue}
-              className="w-full sm:w-auto"
-            >
-              Upload Now →
-            </Button>
-          </>
-        )}
-      </div>
+        <Button
+          size="lg"
+          fullWidth
+          disabled={loading || !selectedSize || !selectedLayout}
+          onClick={() => setStage('uploading')}
+        >
+          {selectedLayout ? `Continue with ${selectedLayout.label} →` : 'Continue →'}
+        </Button>
+      </BottomSheet>
+
+      {/* ── Sheet 2: upload trigger ─────────────────────────────────── */}
+      <BottomSheet open={stage === 'uploading'} onClose={() => setStage('idle')}>
+        <button
+          onClick={() => setStage('picking')}
+          className="text-sm text-text-secondary hover:text-navy transition-colors mb-4"
+        >
+          ← Back
+        </button>
+        <h2 className="font-heading text-xl font-bold text-navy mb-1">
+          Add your photo{count > 1 ? 's' : ''}
+        </h2>
+        <p className="text-text-secondary text-sm mb-6">
+          {selectedSize && selectedLayout
+            ? `${selectedLayout.label} — ${selectedSize.label} magnets`
+            : ''}
+        </p>
+
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          className="w-full flex flex-col items-center justify-center gap-3 py-10 rounded-2xl border-2 border-dashed border-coral-light bg-coral-light/20 hover:bg-coral-light/40 hover:border-coral/50 transition-all"
+        >
+          <svg className="w-8 h-8 text-coral" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 16V4m0 0L7 9m5-5l5 5M5 20h14" />
+          </svg>
+          <span className="font-semibold text-navy">Upload Photos</span>
+          <span className="text-xs text-text-secondary">JPEG · PNG · HEIC — up to 30MB each</span>
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={e => handleFilesChosen(e.target.files)}
+        />
+      </BottomSheet>
     </div>
   );
 }
 
 export default function ConfigurePage() {
   return (
-    <div className="min-h-screen bg-cream">
-      <div className="max-w-5xl mx-auto px-4 py-8 sm:py-12">
-        <Suspense
-          fallback={
-            <div className="flex items-center justify-center h-64 text-text-secondary text-sm">
-              Loading options…
-            </div>
-          }
-        >
-          <SelectionContent />
-        </Suspense>
-      </div>
-    </div>
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center text-text-secondary text-sm">
+          Loading…
+        </div>
+      }
+    >
+      <ConfigureWizard />
+    </Suspense>
   );
 }

@@ -29,6 +29,7 @@ export default function Navbar() {
           <Link href="/start" className="hover:text-coral transition-colors">Make Magnets</Link>
           <Link href="/faq" className="hover:text-coral transition-colors">FAQ</Link>
           <Link href="/shipping" className="hover:text-coral transition-colors">Shipping</Link>
+          <Link href="/track" className="hover:text-coral transition-colors">Track your order</Link>
         </nav>
 
         {/* Right actions */}
@@ -83,6 +84,7 @@ export default function Navbar() {
           <Link href="/start" onClick={() => setMenuOpen(false)} className="py-2 text-navy hover:text-coral">Make Magnets</Link>
           <Link href="/faq" onClick={() => setMenuOpen(false)} className="py-2 text-navy hover:text-coral">FAQ</Link>
           <Link href="/shipping" onClick={() => setMenuOpen(false)} className="py-2 text-navy hover:text-coral">Shipping</Link>
+          <Link href="/track" onClick={() => setMenuOpen(false)} className="py-2 text-navy hover:text-coral">Track your order</Link>
           {mounted && (customer
             ? <Link href="/account" onClick={() => setMenuOpen(false)} className="py-2 text-navy hover:text-coral">My Account</Link>
             : <Link href="/auth/login" onClick={() => setMenuOpen(false)} className="py-2 text-navy hover:text-coral">Sign in</Link>

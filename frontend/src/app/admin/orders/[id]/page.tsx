@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { adminGet, adminPatch, adminPost } from '@/lib/adminApi';
 
 const ALL_STATUSES = [
-  'pending', 'payment_processing', 'paid', 'in_production', 'dispatched', 'delivered', 'cancelled', 'refunded',
+  'paid', 'in_production', 'dispatched', 'delivered', 'cancelled', 'refunded',
 ];
 
 const STATUS_LABEL: Record<string, string> = {

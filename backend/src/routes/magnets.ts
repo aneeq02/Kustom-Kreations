@@ -44,11 +44,11 @@ async function ensureTables() {
     INSERT INTO tile_layouts
       (slug, label, description, rows, cols, active, badge, bulk_discount_pct, sort_order)
     VALUES
-      ('1x1',   'Single',  '1 magnet',                              1, 1, true,  NULL,      0,  0),
-      ('2x2',   '2x2 Set', '4 magnets',                             2, 2, false, NULL,     10,  1),
-      ('3x3',   '3x3 Set', '9 magnets - one photo across a 3x3 grid',3,3, true, 'Popular', 15,  2),
-      ('4x4',   '4x4 Set', '16 magnets',                            4, 4, false, NULL,     20,  3),
-      ('5x5',   '5x5 Set', '25 magnets',                            5, 5, false, NULL,     20,  4)
+      ('1x1',   'Single',  '1 magnet',                                1, 1, true,  NULL,      0,  0),
+      ('2x2',   '2x2 Set', '4 magnets - one photo across a 2x2 grid', 2, 2, false, NULL,     10,  1),
+      ('3x3',   '3x3 Set', '9 magnets - one photo across a 3x3 grid', 3, 3, true, 'Popular', 15,  2),
+      ('4x4',   '4x4 Set', '16 magnets - one photo across a 4x4 grid',4, 4, false, NULL,     20,  3),
+      ('5x5',   '5x5 Set', '25 magnets - one photo across a 5x5 grid',5, 5, false, NULL,     20,  4)
     ON CONFLICT (slug) DO UPDATE
       SET label       = EXCLUDED.label,
           description = EXCLUDED.description,

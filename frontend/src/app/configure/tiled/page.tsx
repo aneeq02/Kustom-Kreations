@@ -8,12 +8,12 @@ import { v4 as uuidv4 } from 'uuid';
 import { useCart } from '@/context/CartContext';
 import { Button } from '@/components/ui/Button';
 import { uploadImage } from '@/lib/api';
+import { takePendingFiles } from '@/lib/pendingUpload';
 import type { PhotoState } from '@/components/designer/DesignerCanvas';
 import type { TiledCanvasHandle } from '@/components/designer/TiledCanvas';
 import ResponsiveCanvasStage from '@/components/designer/ResponsiveCanvasStage';
 import {
   calcSetPrice,
-  perMagnetPrice,
   checkTileQuality,
   estimateDpi,
   layoutBulkDiscountQualifies,
@@ -193,6 +193,13 @@ function TiledDesignerContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [photos.length, uploadOneFile]);
 
+  // Photos handed off from the /configure upload sheet (Start Creating flow)
+  useEffect(() => {
+    const files = takePendingFiles();
+    if (files && files.length) handleFiles(files);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const removePhoto = (index: number) => {
     setPhotos(prev => prev.filter((_, i) => i !== index));
     setActiveIndex(i => Math.max(0, Math.min(i, photos.length - 2)));
@@ -269,7 +276,6 @@ function TiledDesignerContent() {
 
   const count = layout.rows * layout.cols;
   const setPrice = calcSetPrice(layout, size);
-  const ppm = perMagnetPrice(layout, size);
   const numPhotos = photos.length;
   const totalPrice = setPrice * numPhotos * (qualifies ? 1 - bulkPct / 100 : 1);
   const totalMagnets = count * numPhotos;
@@ -605,11 +611,6 @@ function TiledDesignerContent() {
                 {numPhotos} set{numPhotos === 1 ? '' : 's'} · {totalMagnets} magnets total
               </span>
             </div>
-            {count > 1 && (
-              <div className="flex items-baseline gap-1 text-xs text-text-secondary">
-                <span>£{ppm.toFixed(2)} each · £{setPrice.toFixed(2)} per set</span>
-              </div>
-            )}
             {threshold && (
               qualifies ? (
                 <p className="text-xs text-green-700 font-semibold">
