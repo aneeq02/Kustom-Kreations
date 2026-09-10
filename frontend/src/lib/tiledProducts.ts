@@ -5,6 +5,7 @@ export interface ApiMagnetSize {
   sizeMm: number;
   label: string;
   pricePerMagnet: number;
+  bulkDiscountPct: number;
   active: boolean;
   sortOrder: number;
 }
@@ -41,6 +42,31 @@ export const DEFAULT_PRINT_CONFIG: ApiPrintConfig = {
   bleedMm: 3,
   safeAreaMm: 2,
 };
+
+// ── Fetch with retry ──────────────────────────────────────────────────
+// This is called from nearly every page, so a single transient DB blip
+// (a dropped connection to the hosted Postgres, a cold pooler, etc.)
+// shouldn't leave the page stuck. A couple of quick retries clears up
+// the vast majority of those without the user ever noticing.
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
+
+export async function fetchMagnetConfig(): Promise<MagnetProductConfig> {
+  const delaysMs = [0, 800, 2000];
+  let lastError: unknown;
+
+  for (const delay of delaysMs) {
+    if (delay) await new Promise(r => setTimeout(r, delay));
+    try {
+      const res = await fetch(`${API_BASE}/magnets/config`);
+      if (!res.ok) throw new Error(`magnets/config failed: ${res.status}`);
+      return await res.json();
+    } catch (err) {
+      lastError = err;
+    }
+  }
+
+  throw lastError;
+}
 
 // ── Calculation helpers ──────────────────────────────────────────────
 

@@ -114,42 +114,47 @@ ensureTables().catch(err => console.error('Magnet table init error:', err));
 
 /** GET /api/magnets/config */
 router.get('/config', async (_req: Request, res: Response) => {
-  const [sizesRes, layoutsRes, configRes] = await Promise.all([
-    pool.query('SELECT * FROM magnet_sizes ORDER BY sort_order'),
-    pool.query('SELECT * FROM tile_layouts ORDER BY sort_order'),
-    pool.query('SELECT key, value FROM magnet_print_config'),
-  ]);
+  try {
+    const [sizesRes, layoutsRes, configRes] = await Promise.all([
+      pool.query('SELECT * FROM magnet_sizes ORDER BY sort_order'),
+      pool.query('SELECT * FROM tile_layouts ORDER BY sort_order'),
+      pool.query('SELECT key, value FROM magnet_print_config'),
+    ]);
 
-  const printConfig: Record<string, number> = {};
-  for (const row of configRes.rows) {
-    printConfig[snakeToCamel(row.key)] = parseFloat(row.value);
+    const printConfig: Record<string, number> = {};
+    for (const row of configRes.rows) {
+      printConfig[snakeToCamel(row.key)] = parseFloat(row.value);
+    }
+
+    res.json({
+      sizes: sizesRes.rows.map(r => ({
+        id: r.id,
+        sizeMm: Number(r.size_mm),
+        label: r.label,
+        pricePerMagnet: parseFloat(r.price_per_magnet),
+        bulkDiscountPct: parseFloat(r.bulk_discount_pct ?? 0),
+        active: r.active,
+        sortOrder: Number(r.sort_order),
+      })),
+      layouts: layoutsRes.rows.map(r => ({
+        id: r.id,
+        slug: r.slug,
+        label: r.label,
+        description: r.description,
+        rows: Number(r.rows),
+        cols: Number(r.cols),
+        active: r.active,
+        badge: r.badge,
+        bulkDiscountPct: parseFloat(r.bulk_discount_pct),
+        bulkDiscountQty: r.bulk_discount_qty !== null ? Number(r.bulk_discount_qty) : null,
+        sortOrder: Number(r.sort_order),
+      })),
+      printConfig,
+    });
+  } catch (err) {
+    console.error('Magnet config query failed:', err);
+    res.status(503).json({ error: 'Database unavailable', detail: err instanceof Error ? err.message : String(err) });
   }
-
-  res.json({
-    sizes: sizesRes.rows.map(r => ({
-      id: r.id,
-      sizeMm: Number(r.size_mm),
-      label: r.label,
-      pricePerMagnet: parseFloat(r.price_per_magnet),
-      bulkDiscountPct: parseFloat(r.bulk_discount_pct ?? 0),
-      active: r.active,
-      sortOrder: Number(r.sort_order),
-    })),
-    layouts: layoutsRes.rows.map(r => ({
-      id: r.id,
-      slug: r.slug,
-      label: r.label,
-      description: r.description,
-      rows: Number(r.rows),
-      cols: Number(r.cols),
-      active: r.active,
-      badge: r.badge,
-      bulkDiscountPct: parseFloat(r.bulk_discount_pct),
-      bulkDiscountQty: r.bulk_discount_qty !== null ? Number(r.bulk_discount_qty) : null,
-      sortOrder: Number(r.sort_order),
-    })),
-    printConfig,
-  });
 });
 
 /* ── Admin: update sizes ──────────────────────────────────────────── */

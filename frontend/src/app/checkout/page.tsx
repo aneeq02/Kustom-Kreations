@@ -10,11 +10,9 @@ import { Input } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
 import { api } from '@/lib/api';
 import { calcCartTotals, formatPrice, roundToCharmPrice, type LayoutDiscountMap } from '@/lib/pricing';
-import { buildLayoutDiscountMap, type MagnetProductConfig } from '@/lib/tiledProducts';
+import { buildLayoutDiscountMap, fetchMagnetConfig } from '@/lib/tiledProducts';
 import { ShippingMethod, ShippingAddress } from '@/types';
 import { PayPalScriptProvider, PayPalButtons } from '@paypal/react-paypal-js';
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
 
 type CheckoutStep = 'address' | 'shipping' | 'review';
 
@@ -46,9 +44,8 @@ export default function CheckoutPage() {
   const [layoutDiscounts, setLayoutDiscounts] = useState<LayoutDiscountMap | undefined>(undefined);
 
   useEffect(() => {
-    fetch(`${API_BASE}/magnets/config`)
-      .then(r => r.json())
-      .then((cfg: MagnetProductConfig) => setLayoutDiscounts(buildLayoutDiscountMap(cfg.layouts)))
+    fetchMagnetConfig()
+      .then(cfg => setLayoutDiscounts(buildLayoutDiscountMap(cfg.layouts)))
       .catch(() => {});
   }, []);
 

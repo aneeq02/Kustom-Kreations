@@ -17,6 +17,7 @@ import {
   checkTileQuality,
   estimateDpi,
   layoutBulkDiscountQualifies,
+  fetchMagnetConfig,
   DEFAULT_PRINT_CONFIG,
   type ApiMagnetSize,
   type ApiTileLayout,
@@ -36,7 +37,6 @@ const BulkDiscountPopup = dynamic(
   { ssr: false },
 );
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
 const CANVAS_SIZE = 360;
 
 interface PhotoSlot {
@@ -73,8 +73,7 @@ function TiledDesignerContent() {
   const [configLoading, setConfigLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`${API_BASE}/magnets/config`)
-      .then(r => r.json())
+    fetchMagnetConfig()
       .then((cfg: MagnetProductConfig) => {
         const s = cfg.sizes.find(x => x.sizeMm === sizeMmParam) ?? cfg.sizes[0];
         const l = cfg.layouts.find(x => x.slug === layoutSlug)

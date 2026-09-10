@@ -7,12 +7,11 @@ import { Button } from '@/components/ui/Button';
 import BottomSheet from '@/components/configurator/BottomSheet';
 import { setPendingFiles } from '@/lib/pendingUpload';
 import {
+  fetchMagnetConfig,
   type ApiMagnetSize,
   type ApiTileLayout,
   type MagnetProductConfig,
 } from '@/lib/tiledProducts';
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
 
 // Soft glow ring shown around whichever size/layout card is currently selected
 const SELECTED_GLOW = 'shadow-[0_0_0_3px_rgba(205,171,160,0.45),0_0_18px_4px_rgba(205,171,160,0.65)]';
@@ -37,7 +36,7 @@ function GridIcon({ rows, cols, active }: { rows: number; cols: number; active: 
             width={cellW}
             height={cellH}
             rx={1.5}
-            fill={active ? 'white' : '#4A7C3F'}
+            fill={active ? 'white' : '#6E9481'}
             opacity={active ? 1 : 0.85}
           />
         ))
@@ -63,8 +62,7 @@ function ConfigureWizard() {
   const [selectedLayout, setSelectedLayout] = useState<ApiTileLayout | null>(null);
 
   useEffect(() => {
-    fetch(`${API_BASE}/magnets/config`)
-      .then(r => r.json())
+    fetchMagnetConfig()
       .then((data: MagnetProductConfig) => {
         setConfig(data);
         const defaultSize = data.sizes.find(s => s.active) ?? data.sizes[0] ?? null;

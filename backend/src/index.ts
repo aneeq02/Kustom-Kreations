@@ -96,6 +96,23 @@ app.get('/health/db', async (_req, res) => {
   }
 });
 
+// Safety net: catches errors forwarded via next(err) from any route.
+// Express 4 does NOT auto-forward a rejected promise from an async handler
+// here — routes still need their own try/catch — this only backstops ones
+// that do call next(err) explicitly.
+app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error('Unhandled route error:', err);
+  if (!res.headersSent) {
+    res.status(503).json({ error: 'Database unavailable', detail: err.message });
+  }
+});
+
+// Last-resort logging so a transient DB error surfaces in the logs instead of
+// silently hanging a request or being swallowed.
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled promise rejection:', reason);
+});
+
 app.listen(PORT, () => {
   console.log(`Kustom Kreations API running on port ${PORT}`);
 });

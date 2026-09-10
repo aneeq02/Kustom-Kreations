@@ -3,15 +3,7 @@
 import Link from 'next/link';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import { useRef, useState, useEffect } from 'react';
-
-interface MagnetSize {
-  id: string;
-  sizeMm: number;
-  label: string;
-  pricePerMagnet: number;
-  bulkDiscountPct: number;
-  active: boolean;
-}
+import { fetchMagnetConfig, type ApiMagnetSize } from '@/lib/tiledProducts';
 
 // ── Animation helpers ──────────────────────────────────────────
 const EASE_OUT: [number, number, number, number] = [0.22, 1, 0.36, 1];
@@ -68,11 +60,10 @@ export default function HomePage() {
   const { scrollYProgress } = useScroll({ target: heroRef, offset: ['start start', 'end start'] });
   const heroOpacity = useTransform(scrollYProgress, [0, 0.6], [1, 0]);
 
-  const [magnetSizes, setMagnetSizes] = useState<MagnetSize[]>([]);
+  const [magnetSizes, setMagnetSizes] = useState<ApiMagnetSize[]>([]);
   useEffect(() => {
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/magnets/config`)
-      .then(r => r.json())
-      .then(d => setMagnetSizes((d.sizes as MagnetSize[]).filter(s => s.active)))
+    fetchMagnetConfig()
+      .then(cfg => setMagnetSizes(cfg.sizes.filter(s => s.active)))
       .catch(() => {});
   }, []);
 
@@ -83,14 +74,14 @@ export default function HomePage() {
       <motion.section
         ref={heroRef}
         style={{
-          background: 'linear-gradient(135deg, #0C1A0C 0%, #162816 60%, #0F1F0F 100%)',
+          background: 'linear-gradient(135deg, #3E5A50 0%, #4B6C5C 60%, #3A5449 100%)',
           opacity: heroOpacity,
         }}
         className="relative h-screen flex items-center overflow-hidden"
       >
         {/* Ambient glow orbs */}
         <div className="absolute top-[-10%] right-[-5%] w-[600px] h-[600px] rounded-full pointer-events-none"
-          style={{ background: 'radial-gradient(circle, rgba(74,124,63,0.15) 0%, transparent 70%)' }} />
+          style={{ background: 'radial-gradient(circle, rgba(110,148,129,0.15) 0%, transparent 70%)' }} />
         <div className="absolute bottom-[-10%] left-[-5%] w-[500px] h-[500px] rounded-full pointer-events-none"
           style={{ background: 'radial-gradient(circle, rgba(91,142,125,0.1) 0%, transparent 70%)' }} />
 
@@ -133,7 +124,7 @@ export default function HomePage() {
               <Link
                 href="/start"
                 className="group relative inline-flex items-center justify-center gap-2 px-8 py-4 rounded-2xl font-semibold text-white text-lg overflow-hidden transition-all hover:-translate-y-0.5 animate-pulse-gold w-full sm:w-auto"
-                style={{ background: 'linear-gradient(135deg, #4A7C3F 0%, #6AAD5A 50%, #4A7C3F 100%)', backgroundSize: '200% auto' }}
+                style={{ background: 'linear-gradient(135deg, #6E9481 0%, #93B3A3 50%, #6E9481 100%)', backgroundSize: '200% auto' }}
               >
                 <span className="relative z-10">Start creating now</span>
                 <svg className="w-5 h-5 relative z-10 transition-transform group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -208,10 +199,10 @@ export default function HomePage() {
       <section
         id="showcase"
         className="relative py-28 px-4 overflow-hidden"
-        style={{ background: 'linear-gradient(160deg, #0C1A0C 0%, #142414 100%)' }}
+        style={{ background: 'linear-gradient(160deg, #3E5A50 0%, #445F52 100%)' }}
       >
         <div className="absolute inset-0 pointer-events-none"
-          style={{ background: 'radial-gradient(ellipse at 70% 50%, rgba(74,124,63,0.08) 0%, transparent 60%)' }} />
+          style={{ background: 'radial-gradient(ellipse at 70% 50%, rgba(110,148,129,0.08) 0%, transparent 60%)' }} />
 
         <div className="max-w-6xl mx-auto">
           <div className="grid lg:grid-cols-2 gap-16 items-center">
@@ -235,7 +226,7 @@ export default function HomePage() {
                 ].map(item => (
                   <li key={item} className="flex items-center gap-3 text-white/70">
                     <span className="w-5 h-5 rounded-full flex items-center justify-center shrink-0"
-                      style={{ background: 'rgba(74,124,63,0.2)', border: '1px solid rgba(74,124,63,0.4)' }}>
+                      style={{ background: 'rgba(110,148,129,0.2)', border: '1px solid rgba(110,148,129,0.4)' }}>
                       <svg className="w-3 h-3 text-coral" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
                       </svg>
@@ -247,7 +238,7 @@ export default function HomePage() {
               <Link
                 href="/start"
                 className="inline-flex items-center gap-2 px-8 py-4 rounded-2xl font-semibold text-white transition-all hover:-translate-y-0.5"
-                style={{ background: 'linear-gradient(135deg, #4A7C3F, #6AAD5A)' }}
+                style={{ background: 'linear-gradient(135deg, #6E9481, #93B3A3)' }}
               >
                 Try it free →
               </Link>
@@ -258,7 +249,7 @@ export default function HomePage() {
               {...fadeIn(0.2)}
               className="relative rounded-3xl overflow-hidden h-65 sm:h-90 lg:h-120"
               style={{
-                background: 'linear-gradient(135deg, #142414 0%, #0C1A0C 100%)',
+                background: 'linear-gradient(135deg, #445F52 0%, #3E5A50 100%)',
                 border: '1px solid rgba(255,255,255,0.06)',
                 boxShadow: '0 40px 80px rgba(0,0,0,0.5)',
               }}
@@ -338,7 +329,7 @@ export default function HomePage() {
             <Link
               href="/start"
               className="inline-flex items-center gap-2 px-10 py-4 rounded-2xl font-semibold text-white text-lg transition-all hover:-translate-y-0.5 shadow-xl shadow-coral/25"
-              style={{ background: 'linear-gradient(135deg, #4A7C3F, #6AAD5A)' }}
+              style={{ background: 'linear-gradient(135deg, #6E9481, #93B3A3)' }}
             >
               Start creating — it's free
             </Link>
@@ -349,7 +340,7 @@ export default function HomePage() {
       {/* ━━━━━━━━━━ PRICING ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
       <section
         className="py-28 px-4"
-        style={{ background: 'linear-gradient(160deg, #162816, #0C1A0C)' }}
+        style={{ background: 'linear-gradient(160deg, #4B6C5C, #3E5A50)' }}
       >
         <div className="max-w-5xl mx-auto">
           <motion.div {...fadeUp()} className="text-center mb-14">
@@ -416,10 +407,10 @@ export default function HomePage() {
           <motion.div
             {...fadeUp()}
             className="relative rounded-[2rem] overflow-hidden p-12 md:p-20"
-            style={{ background: 'linear-gradient(135deg, #162816 0%, #0C1A0C 100%)' }}
+            style={{ background: 'linear-gradient(135deg, #4B6C5C 0%, #3E5A50 100%)' }}
           >
             <div className="absolute inset-0 pointer-events-none"
-              style={{ background: 'radial-gradient(ellipse at 30% 70%, rgba(74,124,63,0.12), transparent 60%)' }} />
+              style={{ background: 'radial-gradient(ellipse at 30% 70%, rgba(110,148,129,0.12), transparent 60%)' }} />
 
             <div className="relative">
               <div className="flex justify-center gap-2 mb-6">
@@ -450,7 +441,7 @@ export default function HomePage() {
               <Link
                 href="/start"
                 className="inline-flex items-center gap-3 px-10 py-5 rounded-2xl font-bold text-white text-xl transition-all hover:-translate-y-1 shadow-2xl shadow-[#C4985A]/30"
-                style={{ background: 'linear-gradient(135deg, #4A7C3F 0%, #6AAD5A 100%)' }}
+                style={{ background: 'linear-gradient(135deg, #6E9481 0%, #93B3A3 100%)' }}
               >
                 Create your magnets
                 <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>

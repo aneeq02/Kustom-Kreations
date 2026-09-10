@@ -94,8 +94,12 @@ export async function createPayPalOrder(
   });
 
   if (!res.ok) {
-    const err = await res.json() as { message?: string };
-    throw new Error(err.message ?? `PayPal create-order failed (${res.status})`);
+    const err = await res.json() as {
+      message?: string;
+      details?: Array<{ issue?: string; description?: string }>;
+    };
+    const detail = err.details?.map(d => d.description ?? d.issue).filter(Boolean).join('; ');
+    throw new Error(detail || err.message || `PayPal create-order failed (${res.status})`);
   }
 
   const data = await res.json() as { id: string };
@@ -124,8 +128,12 @@ export async function capturePayPalOrder(paypalOrderId: string): Promise<{
   });
 
   if (!res.ok) {
-    const err = await res.json() as { message?: string };
-    throw new Error(err.message ?? `PayPal capture failed (${res.status})`);
+    const err = await res.json() as {
+      message?: string;
+      details?: Array<{ issue?: string; description?: string }>;
+    };
+    const detail = err.details?.map(d => d.description ?? d.issue).filter(Boolean).join('; ');
+    throw new Error(detail || err.message || `PayPal capture failed (${res.status})`);
   }
 
   return res.json() as any;

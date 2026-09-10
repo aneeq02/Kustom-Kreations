@@ -20,7 +20,7 @@ const dmSans = DM_Sans({
 
 export const metadata: Metadata = {
   title: {
-    default: 'Kustom Kreations — Personalised Photo Magnets',
+    default: 'Kustom Kreations',
     template: '%s | Kustom Kreations',
   },
   description: 'Create beautiful personalised 50mm photo magnets from your favourite memories. Upload, preview, and order in minutes. Ships to UK & Isle of Man.',
