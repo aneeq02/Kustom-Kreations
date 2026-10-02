@@ -1,28 +1,40 @@
 @import "tailwindcss";
 
 @theme inline {
-  /* ── Dusty Rose & Sage palette ────────────── */
+  /* ── Editorial palette — photography-first, colour used sparingly ── */
   --color-coral:          #CDABA0;
   --color-coral-light:    #EACEC4;
   --color-teal:           #006E71;
   --color-teal-light:     #D6E7E7;
+
+  /* ── Brand — the logo green. One confident accent for every primary
+        action (Shop Now, Bag, +, Checkout), the way Mixtiles uses its pink. ── */
+  --color-brand:          #006E71;
+  --color-brand-dark:     #00565A;
+  --color-brand-light:    #E3EFEE;
   --color-sky:            #B8C5B9;
   --color-sky-light:      #E4E3E5;
   --color-yellow:         #CDABA0;
   --color-yellow-light:   #EACEC4;
-  --color-cream:          #F2ECE5;
+  --color-cream:          #F7F6F2;
   --color-ivory:          #EDE6DE;
-  --color-navy:           #1C1F1A;
+  --color-navy:           #1A1A18;
   --color-navy-light:     #2B3029;
   --color-white:          #FFFFFF;
-  --color-text-secondary: #7A6E68;
-  --color-border:         #DDD5CF;
+  --color-text-secondary: #8C8880;
+  --color-border:         #E0DDD6;
   --color-gold:           #CDABA0;
   --color-gold-light:     #EACEC4;
 
   /* ── Typography ───────────────────────────── */
-  --font-heading: var(--font-fraunces), 'Fraunces', Georgia, serif;
+  --font-heading: var(--font-cormorant), 'Cormorant Garamond', Georgia, serif;
   --font-body:    var(--font-dm-sans), 'DM Sans', ui-sans-serif, system-ui, sans-serif;
+
+  /* ── Radius — restrained, deliberate, never a pill ── */
+  --radius-sm:   2px;
+  --radius-md:   4px;
+  --radius-lg:   4px;
+  --radius-pill: 4px;
 }
 
 /* ── Base ─────────────────────────────────────── */
@@ -38,14 +50,15 @@ body {
 @layer base {
   h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-heading);
-    line-height: 1.2;
+    font-weight: 400;
+    line-height: 1.15;
     letter-spacing: -0.01em;
     color: var(--color-navy);
   }
 }
 
 :focus-visible {
-  outline: 3px solid var(--color-coral);
+  outline: 3px solid var(--color-brand);
   outline-offset: 2px;
   border-radius: 6px;
 }
@@ -60,58 +73,23 @@ html {
   -ms-overflow-style: none; /* IE and Edge */
   scroll-behavior: smooth; /* Kept from your original code */
 }
-/* ── Animations ───────────────────────────────── */
-@keyframes float {
-  0%, 100% { transform: translateY(0px) rotate(var(--rot, 0deg)); }
-  50%       { transform: translateY(-10px) rotate(var(--rot, 0deg)); }
-}
-
-@keyframes floatSlow {
-  0%, 100% { transform: translateY(0px); }
-  50%       { transform: translateY(-6px); }
-}
-
-@keyframes shimmer {
-  0%   { background-position: -200% center; }
-  100% { background-position: 200% center; }
-}
-
-@keyframes marquee {
-  from { transform: translateX(0); }
-  to   { transform: translateX(-50%); }
-}
-
-@keyframes pulseGreen {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(205,171,160,0.55); }
-  50%       { box-shadow: 0 0 0 14px rgba(205,171,160,0); }
-}
-
-@keyframes scaleIn {
-  from { transform: scale(0) rotate(var(--rot, 0deg)); opacity: 0; }
-  to   { transform: scale(1) rotate(var(--rot, 0deg)); opacity: 1; }
-}
-
 /* ── Utility classes ──────────────────────────── */
-.animate-float        { animation: float 4s ease-in-out infinite; }
-.animate-float-slow   { animation: floatSlow 6s ease-in-out infinite; }
-.animate-marquee      { animation: marquee 28s linear infinite; }
-.animate-pulse-gold   { animation: pulseGreen 2s ease-in-out infinite; }
+/* Marquee runs on the compositor (CSS transform), not per-frame JS */
+@keyframes kk-marquee { to { transform: translate3d(-50%, 0, 0); } }
+.kk-marquee { animation: kk-marquee 38s linear infinite; }
+.kk-marquee[data-paused='true'] { animation-play-state: paused; }
 
-.text-gradient-gold {
-  background: linear-gradient(135deg, #CDABA0 0%, #EACEC4 50%, #CDABA0 100%);
-  background-size: 200% auto;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  animation: shimmer 4s linear infinite;
+/* Skip rendering below-the-fold sections until they're near the viewport */
+.kk-defer { content-visibility: auto; contain-intrinsic-size: auto 900px; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-
-.glass {
-  background: rgba(255,255,255,0.08);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255,255,255,0.12);
-}

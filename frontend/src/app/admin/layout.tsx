@@ -2,25 +2,34 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { adminFetch, saveAdminPin, clearAdminPin, ADMIN_PIN_KEY } from '@/lib/adminApi';
 import NewOrderAlert from '@/components/admin/NewOrderAlert';
-
-// ── Navigation items ──────────────────────────────────────────────────────────
+import BottomSheet from '@/components/configurator/BottomSheet';
+import { Icon } from '@/components/admin/ui';
 
 const NAV = [
-  { href: '/admin',           icon: '📊', label: 'Dashboard'  },
-  { href: '/admin/orders',    icon: '📦', label: 'Orders'     },
-  { href: '/admin/products',  icon: '🧲', label: 'Products'   },
-  { href: '/admin/shipping',  icon: '🚚', label: 'Shipping'   },
-  { href: '/admin/discounts', icon: '🎟️', label: 'Discounts'  },
-  { href: '/admin/customers', icon: '👥', label: 'Customers'  },
+  { href: '/admin',           icon: 'home',      label: 'Dashboard', short: 'Home' },
+  { href: '/admin/orders',    icon: 'orders',    label: 'Orders',    short: 'Orders' },
+  { href: '/admin/products',  icon: 'products',  label: 'Products',  short: 'Products' },
+  { href: '/admin/discounts', icon: 'discounts', label: 'Discounts', short: 'Discounts' },
+  { href: '/admin/shipping',  icon: 'shipping',  label: 'Shipping',  short: 'Shipping' },
+  { href: '/admin/customers', icon: 'customers', label: 'Customers', short: 'Customers' },
 ];
+// Phones get a bottom tab bar (max 5): the first four, then "More" for the rest
+const TAB_NAV = NAV.slice(0, 4);
+const MORE_NAV = NAV.slice(4);
+
+function useIsActive() {
+  const pathname = usePathname() ?? '';
+  return (href: string) => (href === '/admin' ? pathname === '/admin' : pathname.startsWith(href));
+}
 
 // ── PIN Gate ──────────────────────────────────────────────────────────────────
 
-function PinGate({ onSuccess }: { onSuccess: (pin: string) => void }) {
-  const [pin, setPin]     = useState('');
+function PinGate({ onSuccess }: { onSuccess: () => void }) {
+  const [pin, setPin] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -33,209 +42,246 @@ function PinGate({ onSuccess }: { onSuccess: (pin: string) => void }) {
       const res = await adminFetch('/verify', {}, pin);
       if (res.ok) {
         saveAdminPin(pin);
-        onSuccess(pin);
+        onSuccess();
       } else {
-        setError('Wrong PIN — please try again!');
+        setError('That PIN isn’t right — please try again.');
         setPin('');
       }
     } catch {
-      setError('Could not connect to server. Is the backend running?');
+      setError('Could not reach the server. Is the backend running?');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-cream flex items-center justify-center p-4">
-      <div className="w-full max-w-sm bg-white rounded-3xl shadow-2xl p-8 text-center">
-        <div className="text-7xl mb-4">🔐</div>
-        <h1 className="text-3xl font-heading font-bold text-navy mb-2">
-          Admin Area
-        </h1>
-        <p className="text-text-secondary mb-8 text-lg">
-          Enter your PIN to manage the shop
-        </p>
+    <div className="min-h-dvh bg-cream flex flex-col px-5">
+      <div className="pt-5">
+        <Link href="/" className="inline-flex items-center gap-1.5 h-11 text-sm font-medium text-navy/70 hover:text-navy">
+          <Icon name="back" className="w-4 h-4" /> Back to site
+        </Link>
+      </div>
+      <div className="flex-1 flex items-center justify-center pb-16">
+        <div className="w-full max-w-sm">
+          <div className="flex flex-col items-center text-center mb-8">
+            <Image src="/logo-teal.png" alt="" width={64} height={64} className="w-16 h-16 mb-4" priority />
+            <h1 className="font-heading text-4xl text-navy">Shop admin</h1>
+            <p className="text-text-secondary mt-1.5">Enter your PIN to manage Kustom Kreations</p>
+          </div>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <input
-            type="password"
-            inputMode="numeric"
-            pattern="[0-9]*"
-            placeholder="Enter PIN"
-            value={pin}
-            onChange={e => setPin(e.target.value)}
-            className="w-full text-center text-3xl font-bold tracking-widest border-3 border-coral-light rounded-2xl px-4 py-5 focus:border-coral focus:outline-none text-navy bg-ivory"
-            autoFocus
-          />
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 text-base font-medium px-4 py-3 rounded-xl">
-              {error}
-            </div>
-          )}
-          <button
-            type="submit"
-            disabled={loading || !pin}
-            className="w-full py-4 px-6 bg-coral text-white text-xl font-bold rounded-2xl shadow-lg hover:bg-coral/90 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {loading ? 'Checking…' : 'Enter →'}
-          </button>
-        </form>
+          <form onSubmit={handleSubmit} className="bg-white rounded-2xl border border-border p-5 sm:p-6 flex flex-col gap-4 shadow-[0_12px_40px_-16px_rgba(26,26,24,0.2)]">
+            <label htmlFor="admin-pin" className="sr-only">PIN</label>
+            <input
+              id="admin-pin"
+              type="password"
+              inputMode="numeric"
+              autoComplete="current-password"
+              pattern="[0-9]*"
+              placeholder="••••"
+              value={pin}
+              onChange={e => setPin(e.target.value)}
+              className="w-full h-16 text-center text-3xl tracking-[0.5em] rounded-xl border border-border bg-cream/60 text-navy focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15"
+              autoFocus
+            />
+            {error && (
+              <p role="alert" className="text-sm text-red-800 bg-red-50 border border-red-100 rounded-lg px-3 py-2.5 text-center">{error}</p>
+            )}
+            <button
+              type="submit"
+              disabled={loading || !pin}
+              className="w-full h-12 rounded-lg bg-brand text-white font-semibold hover:bg-brand-dark transition-colors disabled:opacity-45 disabled:cursor-not-allowed cursor-pointer"
+            >
+              {loading ? 'Checking…' : 'Unlock'}
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   );
 }
 
-// ── Sidebar ───────────────────────────────────────────────────────────────────
+// ── Desktop sidebar ───────────────────────────────────────────────────────────
 
-function Sidebar({
-  open,
-  onClose,
-  onSignOut,
-}: {
-  open: boolean;
-  onClose: () => void;
-  onSignOut: () => void;
-}) {
-  const pathname = usePathname();
-
-  const isActive = (href: string) =>
-    href === '/admin' ? pathname === '/admin' : pathname.startsWith(href);
-
+function Sidebar({ onSignOut }: { onSignOut: () => void }) {
+  const isActive = useIsActive();
   return (
-    <>
-      {/* Mobile overlay */}
-      {open && (
-        <div
-          className="fixed inset-0 bg-black/40 z-20 lg:hidden"
-          onClick={onClose}
-        />
-      )}
+    <aside className="hidden lg:flex fixed inset-y-0 left-0 w-64 bg-white border-r border-border flex-col z-30">
+      <Link href="/admin" className="flex items-center gap-3 px-6 h-20 border-b border-border">
+        <Image src="/logo-teal.png" alt="" width={40} height={40} className="w-10 h-10" />
+        <span className="leading-tight">
+          <span className="block font-heading text-xl text-brand">kustom kreations</span>
+          <span className="block text-[11px] uppercase tracking-[0.18em] text-text-secondary">Admin</span>
+        </span>
+      </Link>
 
-      <aside
-        className={[
-          'fixed top-0 left-0 h-full w-64 bg-navy text-white flex flex-col z-30 transition-transform duration-300',
-          open ? 'translate-x-0' : '-translate-x-full',
-          'lg:translate-x-0 lg:static lg:z-auto',
-        ].join(' ')}
-      >
-        {/* Logo */}
-        <div className="p-6 border-b border-white/10">
-          <div className="flex items-center gap-3">
-            <span className="text-3xl">🧲</span>
-            <div>
-              <div className="font-heading font-bold text-lg leading-tight">Kustom</div>
-              <div className="text-xs text-white/60 uppercase tracking-wider">Admin Panel</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Nav */}
-        <nav className="flex-1 p-4 flex flex-col gap-1">
-          {NAV.map(item => (
+      <nav className="flex-1 overflow-y-auto px-3 py-5 flex flex-col gap-0.5" aria-label="Admin">
+        {NAV.map(item => {
+          const active = isActive(item.href);
+          return (
             <Link
               key={item.href}
               href={item.href}
-              onClick={onClose}
-              className={[
-                'flex items-center gap-4 px-4 py-3.5 rounded-2xl text-lg font-semibold transition-all',
-                isActive(item.href)
-                  ? 'bg-coral text-white shadow-lg'
-                  : 'text-white/80 hover:bg-white/10 hover:text-white',
-              ].join(' ')}
+              aria-current={active ? 'page' : undefined}
+              className={`relative flex items-center gap-3 h-11 px-3.5 rounded-lg text-[15px] font-medium transition-colors ${
+                active ? 'bg-brand-light text-brand' : 'text-navy/75 hover:bg-cream hover:text-navy'
+              }`}
             >
-              <span className="text-2xl w-8 text-center">{item.icon}</span>
-              <span>{item.label}</span>
+              {active && <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-brand" />}
+              <Icon name={item.icon} />
+              {item.label}
             </Link>
-          ))}
-        </nav>
+          );
+        })}
+      </nav>
 
-        {/* Sign out */}
-        <div className="p-4 border-t border-white/10">
-          <button
-            onClick={onSignOut}
-            className="w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl text-lg font-semibold text-white/60 hover:bg-red-500/20 hover:text-red-300 transition-all"
-          >
-            <span className="text-2xl w-8 text-center">🚪</span>
-            <span>Sign Out</span>
-          </button>
-          <p className="text-center text-white/30 text-xs mt-3">
-            Kustom Kreations Admin
-          </p>
-        </div>
-      </aside>
-    </>
+      <div className="p-3 border-t border-border flex flex-col gap-1">
+        <Link
+          href="/"
+          className="flex items-center gap-3 h-11 px-3.5 rounded-lg text-[15px] font-medium text-navy border border-border hover:border-navy/30 transition-colors"
+        >
+          <Icon name="store" /> Back to site
+        </Link>
+        <button
+          onClick={onSignOut}
+          className="flex items-center gap-3 h-11 px-3.5 rounded-lg text-[15px] font-medium text-navy/60 hover:text-red-700 hover:bg-red-50 transition-colors cursor-pointer"
+        >
+          <Icon name="logout" /> Sign out
+        </button>
+      </div>
+    </aside>
+  );
+}
+
+// ── Mobile chrome: top bar + bottom tabs + "More" sheet ──────────────────────
+
+function MobileTopBar() {
+  const pathname = usePathname() ?? '';
+  const current = [...NAV].reverse().find(n => (n.href === '/admin' ? pathname === '/admin' : pathname.startsWith(n.href)));
+  return (
+    <header className="lg:hidden sticky top-0 z-30 h-14 bg-white border-b border-border flex items-center gap-2 px-3">
+      <Link href="/admin" className="flex items-center gap-2 min-w-0 flex-1">
+        <Image src="/logo-teal.png" alt="" width={32} height={32} className="w-8 h-8 shrink-0" />
+        <span className="font-heading text-lg text-brand truncate">{current?.label ?? 'Admin'}</span>
+      </Link>
+      <Link
+        href="/"
+        className="inline-flex items-center gap-1.5 h-10 px-3 rounded-lg border border-border text-sm font-medium text-navy hover:border-navy/30 shrink-0"
+      >
+        <Icon name="store" className="w-4 h-4" /> Back to site
+      </Link>
+    </header>
+  );
+}
+
+function MobileTabBar({ onMore, moreActive }: { onMore: () => void; moreActive: boolean }) {
+  const isActive = useIsActive();
+  const tab = (active: boolean) =>
+    `flex-1 flex flex-col items-center justify-center gap-0.5 h-full text-[11px] font-medium transition-colors ${
+      active ? 'text-brand' : 'text-navy/55 hover:text-navy'
+    }`;
+  return (
+    <nav
+      aria-label="Admin"
+      className="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-white border-t border-border pb-[env(safe-area-inset-bottom)]"
+    >
+      <div className="h-16 flex items-stretch">
+        {TAB_NAV.map(item => {
+          const active = isActive(item.href);
+          return (
+            <Link key={item.href} href={item.href} aria-current={active ? 'page' : undefined} className={tab(active)}>
+              <Icon name={item.icon} className="w-[22px] h-[22px]" />
+              {item.short}
+            </Link>
+          );
+        })}
+        <button onClick={onMore} className={`${tab(moreActive)} cursor-pointer`}>
+          <Icon name="more" className="w-[22px] h-[22px]" />
+          More
+        </button>
+      </div>
+    </nav>
   );
 }
 
 // ── Layout wrapper ────────────────────────────────────────────────────────────
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  const router   = useRouter();
-  const [authed, setAuthed]     = useState(false);
-  const [checked, setChecked]   = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const router = useRouter();
+  const pathname = usePathname() ?? '';
+  const isActive = useIsActive();
+  const [authed, setAuthed] = useState(false);
+  const [checked, setChecked] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
 
-  // On mount: check if PIN already stored in session
+  // On mount: check if a PIN is already stored for this browser session
   useEffect(() => {
     const stored = sessionStorage.getItem(ADMIN_PIN_KEY);
-    if (stored) {
-      // Verify it's still valid
-      adminFetch('/verify', {}, stored)
-        .then(r => {
-          if (r.ok) setAuthed(true);
-          else sessionStorage.removeItem(ADMIN_PIN_KEY);
-        })
-        .catch(() => {})
-        .finally(() => setChecked(true));
-    } else {
-      setChecked(true);
-    }
+    if (!stored) { setChecked(true); return; }
+    adminFetch('/verify', {}, stored)
+      .then(r => {
+        if (r.ok) setAuthed(true);
+        else sessionStorage.removeItem(ADMIN_PIN_KEY);
+      })
+      .catch(() => {})
+      .finally(() => setChecked(true));
   }, []);
 
   const handleSignOut = useCallback(() => {
     clearAdminPin();
     setAuthed(false);
+    setMoreOpen(false);
     router.push('/admin');
   }, [router]);
 
   if (!checked) {
     return (
-      <div className="min-h-screen bg-cream flex items-center justify-center">
-        <div className="text-5xl animate-spin">⚙️</div>
+      <div className="min-h-dvh bg-cream flex items-center justify-center">
+        <span className="w-8 h-8 rounded-full border-2 border-brand/25 border-t-brand animate-spin" aria-label="Loading" />
       </div>
     );
   }
 
-  if (!authed) {
-    return <PinGate onSuccess={() => setAuthed(true)} />;
-  }
+  if (!authed) return <PinGate onSuccess={() => setAuthed(true)} />;
+
+  // The packing slip is a print document — render it bare, without admin chrome
+  if (pathname.endsWith('/packing-slip')) return <>{children}</>;
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div className="min-h-dvh bg-cream">
       <NewOrderAlert />
-      <Sidebar
-        open={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-        onSignOut={handleSignOut}
-      />
+      <Sidebar onSignOut={handleSignOut} />
+      <MobileTopBar />
 
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Top bar */}
-        <header className="bg-white border-b border-gray-200 px-4 py-3 flex items-center gap-4 lg:hidden sticky top-0 z-10 shadow-sm">
-          <button
-            onClick={() => setSidebarOpen(true)}
-            className="p-2 rounded-xl bg-navy text-white text-xl"
-          >
-            ☰
-          </button>
-          <span className="font-heading font-bold text-navy text-lg">Admin Panel</span>
-        </header>
-
-        {/* Page content */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-auto">
+      <main className="lg:pl-64">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-10 pt-5 sm:pt-8 pb-[calc(6rem+env(safe-area-inset-bottom))] lg:pb-12">
           {children}
-        </main>
-      </div>
+        </div>
+      </main>
+
+      <MobileTabBar onMore={() => setMoreOpen(true)} moreActive={MORE_NAV.some(n => isActive(n.href))} />
+
+      <BottomSheet open={moreOpen} onClose={() => setMoreOpen(false)} label="More">
+        <nav className="flex flex-col gap-1 pt-1">
+          {MORE_NAV.map(item => (
+            <Link
+              key={item.href}
+              href={item.href}
+              onClick={() => setMoreOpen(false)}
+              className={`flex items-center gap-3 h-12 px-3 rounded-lg font-medium ${isActive(item.href) ? 'bg-brand-light text-brand' : 'text-navy hover:bg-cream'}`}
+            >
+              <Icon name={item.icon} /> {item.label}
+              <Icon name="chevron" className="w-4 h-4 ml-auto text-text-secondary" />
+            </Link>
+          ))}
+          <div className="h-px bg-border my-2" />
+          <Link href="/" onClick={() => setMoreOpen(false)} className="flex items-center gap-3 h-12 px-3 rounded-lg font-medium text-navy hover:bg-cream">
+            <Icon name="store" /> Back to site
+          </Link>
+          <button onClick={handleSignOut} className="flex items-center gap-3 h-12 px-3 rounded-lg font-medium text-red-700 hover:bg-red-50 cursor-pointer">
+            <Icon name="logout" /> Sign out
+          </button>
+        </nav>
+      </BottomSheet>
     </div>
   );
 }

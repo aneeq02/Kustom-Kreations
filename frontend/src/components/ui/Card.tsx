@@ -16,7 +16,7 @@ export function Card({ padding = 'md', hover, children, className = '', ...props
   return (
     <div
       className={[
-        'bg-white rounded-2xl shadow-sm border border-coral-light/40',
+        'bg-white rounded-[4px] shadow-sm border border-coral-light/40',
         hover ? 'transition-shadow duration-200 hover:shadow-md' : '',
         paddings[padding],
         className,

@@ -1,7 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { adminGet, adminPost, adminPatch, adminDelete } from '@/lib/adminApi';
+import { gbp } from '@/lib/adminStatus';
+import BottomSheet from '@/components/configurator/BottomSheet';
+import { AffixInput, Alert, Btn, EmptyState, Field, Icon, PageHeader, SkeletonRows, Toggle, inputCls } from '@/components/admin/ui';
 
 interface Discount {
   id: string; code: string; type: string; value: string;
@@ -16,21 +19,22 @@ interface Voucher {
 }
 
 const TYPE_OPTS = [
-  { value: 'percentage',    label: '% Off',         icon: '📉' },
-  { value: 'fixed',         label: '£ Off',         icon: '💷' },
-  { value: 'free_shipping', label: 'Free Shipping',  icon: '🚚' },
+  { value: 'percentage',    label: '% off' },
+  { value: 'fixed',         label: '£ off' },
+  { value: 'free_shipping', label: 'Free delivery' },
 ];
 
 const blank = { code: '', type: 'percentage', value: '', minOrder: '', maxUses: '', expiresAt: '' };
 
-function DiscountBadge({ type }: { type: string }) {
-  const opts = { percentage: 'bg-blue-100 text-blue-800', fixed: 'bg-green-100 text-green-800', free_shipping: 'bg-indigo-100 text-indigo-800' };
-  const label = { percentage: '% Off', fixed: '£ Off', free_shipping: 'Free Ship' };
-  return (
-    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${opts[type as keyof typeof opts] ?? 'bg-gray-100 text-gray-700'}`}>
-      {label[type as keyof typeof label] ?? type}
-    </span>
-  );
+function describe(d: Discount) {
+  const parts = [
+    d.type === 'percentage' ? `${parseFloat(d.value)}% off` : d.type === 'fixed' ? `${gbp(d.value)} off` : 'Free delivery',
+  ];
+  if (d.min_order_amount) parts.push(`min ${gbp(d.min_order_amount)}`);
+  if (d.max_uses) parts.push(`${d.used_count}/${d.max_uses} used`);
+  else if (d.used_count > 0) parts.push(`used ${d.used_count}×`);
+  if (d.expires_at) parts.push(`ends ${new Date(d.expires_at).toLocaleDateString('en-GB')}`);
+  return parts.join(' · ');
 }
 
 export default function AdminDiscountsPage() {
@@ -42,9 +46,10 @@ export default function AdminDiscountsPage() {
   const [adding, setAdding]       = useState(false);
   const [error, setError]         = useState('');
   const [tab, setTab]             = useState<'discounts' | 'vouchers'>('discounts');
+  const [confirmDelete, setConfirmDelete] = useState<Discount | null>(null);
+  const [busyId, setBusyId]       = useState<string | null>(null);
 
-  const load = async () => {
-    setLoading(true);
+  const load = useCallback(async () => {
     try {
       const [d, v] = await Promise.all([
         adminGet<Discount[]>('/discounts'),
@@ -55,9 +60,9 @@ export default function AdminDiscountsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
   const add = async () => {
     setAdding(true);
@@ -73,7 +78,7 @@ export default function AdminDiscountsPage() {
       });
       setShowAdd(false);
       setForm(blank);
-      load();
+      await load();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed');
     } finally {
@@ -81,238 +86,216 @@ export default function AdminDiscountsPage() {
     }
   };
 
-  const toggleDiscount = async (d: Discount) => {
-    await adminPatch(`/discounts/${d.id}`, { active: !d.active });
-    load();
+  const run = async (id: string, fn: () => Promise<unknown>) => {
+    setBusyId(id);
+    try { await fn(); await load(); } finally { setBusyId(null); }
   };
 
-  const deleteDiscount = async (id: string) => {
-    await adminDelete(`/discounts/${id}`);
-    load();
-  };
-
-  const toggleVoucher = async (v: Voucher) => {
-    await adminPatch(`/vouchers/${v.id}`, { active: !v.active });
-    load();
-  };
-
-  const formatValue = (d: Discount) => {
-    if (d.type === 'percentage') return `${parseFloat(d.value)}% off`;
-    if (d.type === 'fixed')      return `£${parseFloat(d.value).toFixed(2)} off`;
-    return 'Free shipping';
-  };
-
-  if (loading) return <div className="text-center py-16 text-4xl animate-pulse">🎟️</div>;
+  const canCreate = !!form.code.trim() && (form.type === 'free_shipping' || !!form.value);
 
   return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-4xl font-heading font-bold text-navy">🎟️ Discounts</h1>
-        <p className="text-gray-500 mt-1 text-lg">Create discount codes and manage gift vouchers.</p>
-      </div>
+    <div className="flex flex-col gap-5">
+      <PageHeader
+        title="Discounts"
+        subtitle="Promo codes and gift vouchers."
+        action={tab === 'discounts' && (
+          <Btn onClick={() => { setError(''); setShowAdd(true); }} className="hidden sm:inline-flex">
+            <Icon name="plus" className="w-4 h-4" /> New code
+          </Btn>
+        )}
+      />
 
-      {/* Tabs */}
-      <div className="flex gap-2">
+      {/* Segmented tabs */}
+      <div className="grid grid-cols-2 sm:inline-grid sm:w-80 p-1 rounded-lg bg-white border border-border" role="tablist">
         {(['discounts', 'vouchers'] as const).map(t => (
           <button
             key={t}
+            role="tab"
+            aria-selected={tab === t}
             onClick={() => setTab(t)}
-            className={`px-6 py-3 rounded-2xl font-bold text-base transition-all ${tab === t ? 'bg-navy text-white' : 'bg-white text-gray-600 border border-gray-200 hover:border-navy'}`}
+            className={`h-10 rounded-md text-sm font-semibold transition-colors cursor-pointer ${tab === t ? 'bg-navy text-white' : 'text-navy/70 hover:text-navy'}`}
           >
-            {t === 'discounts' ? '🎟️ Discount Codes' : '🎁 Gift Vouchers'}
+            {t === 'discounts' ? `Codes (${discounts.length})` : `Vouchers (${vouchers.length})`}
           </button>
         ))}
       </div>
 
-      {tab === 'discounts' && (
+      {loading ? (
+        <SkeletonRows rows={4} />
+      ) : tab === 'discounts' ? (
         <>
-          <div className="flex justify-end">
-            <button
-              onClick={() => setShowAdd(s => !s)}
-              className="bg-coral text-white font-bold px-6 py-3 rounded-2xl hover:bg-coral/90 active:scale-95 transition-all text-lg"
-            >
-              ➕ New Code
-            </button>
-          </div>
+          <Btn size="lg" onClick={() => { setError(''); setShowAdd(true); }} className="sm:hidden w-full">
+            <Icon name="plus" className="w-5 h-5" /> New code
+          </Btn>
 
-          {/* Add form */}
-          {showAdd && (
-            <div className="bg-white rounded-3xl border border-coral/30 shadow-sm p-6">
-              <h2 className="text-xl font-heading font-bold text-navy mb-5">Create Discount Code</h2>
-              <div className="flex flex-col gap-4">
-                {/* Type selector */}
-                <div>
-                  <label className="block font-bold text-navy mb-2">Discount Type</label>
-                  <div className="flex gap-2 flex-wrap">
-                    {TYPE_OPTS.map(t => (
-                      <button
-                        key={t.value}
-                        onClick={() => setForm(f => ({ ...f, type: t.value }))}
-                        className={`px-4 py-3 rounded-2xl font-bold border-2 transition-all ${form.type === t.value ? 'border-coral bg-coral/10 text-coral' : 'border-gray-200 text-gray-600 hover:border-gray-400'}`}
-                      >
-                        {t.icon} {t.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block font-bold text-navy mb-1">Code</label>
-                    <input
-                      value={form.code}
-                      onChange={e => setForm(f => ({ ...f, code: e.target.value.toUpperCase() }))}
-                      placeholder="e.g. SUMMER20"
-                      className="w-full border border-gray-200 rounded-2xl px-4 py-3 text-base font-bold tracking-widest uppercase focus:outline-none focus:border-coral"
-                    />
-                  </div>
-                  {form.type !== 'free_shipping' && (
-                    <div>
-                      <label className="block font-bold text-navy mb-1">
-                        {form.type === 'percentage' ? 'Percentage Off (%)' : 'Amount Off (£)'}
-                      </label>
-                      <input
-                        type="number" step={form.type === 'percentage' ? '1' : '0.01'} min="0"
-                        value={form.value}
-                        onChange={e => setForm(f => ({ ...f, value: e.target.value }))}
-                        placeholder={form.type === 'percentage' ? '20' : '5.00'}
-                        className="w-full border border-gray-200 rounded-2xl px-4 py-3 text-base focus:outline-none focus:border-coral"
-                      />
-                    </div>
-                  )}
-                  <div>
-                    <label className="block font-bold text-navy mb-1">Min Order (£) — optional</label>
-                    <input
-                      type="number" step="0.01" min="0"
-                      value={form.minOrder}
-                      onChange={e => setForm(f => ({ ...f, minOrder: e.target.value }))}
-                      placeholder="e.g. 15.00"
-                      className="w-full border border-gray-200 rounded-2xl px-4 py-3 text-base focus:outline-none focus:border-coral"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-bold text-navy mb-1">Max Uses — optional</label>
-                    <input
-                      type="number" step="1" min="1"
-                      value={form.maxUses}
-                      onChange={e => setForm(f => ({ ...f, maxUses: e.target.value }))}
-                      placeholder="e.g. 100"
-                      className="w-full border border-gray-200 rounded-2xl px-4 py-3 text-base focus:outline-none focus:border-coral"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-bold text-navy mb-1">Expires — optional</label>
-                    <input
-                      type="date"
-                      value={form.expiresAt}
-                      onChange={e => setForm(f => ({ ...f, expiresAt: e.target.value }))}
-                      className="w-full border border-gray-200 rounded-2xl px-4 py-3 text-base focus:outline-none focus:border-coral"
-                    />
-                  </div>
-                </div>
-
-                {error && (
-                  <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3">
-                    ⚠️ {error}
-                  </div>
-                )}
-
-                <div className="flex gap-3">
-                  <button
-                    onClick={add} disabled={adding || !form.code}
-                    className="flex-1 py-4 bg-coral text-white font-bold text-lg rounded-2xl hover:bg-coral/90 disabled:opacity-50"
-                  >
-                    {adding ? 'Creating…' : '✅ Create Code'}
-                  </button>
-                  <button
-                    onClick={() => { setShowAdd(false); setError(''); }}
-                    className="px-5 py-4 bg-gray-100 text-gray-600 font-bold rounded-2xl hover:bg-gray-200"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Discounts list */}
-          <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
-            {discounts.length === 0 ? (
-              <div className="py-16 text-center text-gray-400 text-xl">
-                No discount codes yet — create one! 🎟️
-              </div>
-            ) : (
-              <div className="divide-y divide-gray-50">
-                {discounts.map(d => (
-                  <div key={d.id} className="flex items-center gap-3 px-5 py-4 flex-wrap sm:flex-nowrap">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-3 flex-wrap">
-                        <span className="font-bold font-mono text-navy text-lg tracking-widest">{d.code}</span>
-                        <DiscountBadge type={d.type} />
-                        {!d.active && <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">Inactive</span>}
-                      </div>
-                      <div className="text-gray-500 text-sm mt-0.5">
-                        {formatValue(d)}
-                        {d.min_order_amount && ` · min £${parseFloat(d.min_order_amount).toFixed(2)}`}
-                        {d.max_uses && ` · ${d.used_count}/${d.max_uses} used`}
-                        {!d.max_uses && d.used_count > 0 && ` · used ${d.used_count}×`}
-                        {d.expires_at && ` · expires ${new Date(d.expires_at).toLocaleDateString('en-GB')}`}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <button
-                        onClick={() => toggleDiscount(d)}
-                        className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${d.active ? 'bg-green-500' : 'bg-gray-300'}`}
-                      >
-                        <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform ${d.active ? 'translate-x-6' : 'translate-x-1'}`} />
-                      </button>
-                      <button
-                        onClick={() => deleteDiscount(d.id)}
-                        className="p-2 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all"
-                      >
-                        🗑️
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </>
-      )}
-
-      {tab === 'vouchers' && (
-        <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
-          {vouchers.length === 0 ? (
-            <div className="py-16 text-center text-gray-400 text-xl">
-              No gift vouchers yet 🎁
+          {discounts.length === 0 ? (
+            <div className="bg-white rounded-xl border border-border/80">
+              <EmptyState icon="discounts" title="No discount codes yet" body="Create one to run a promotion or thank a loyal customer." />
             </div>
           ) : (
-            <div className="divide-y divide-gray-50">
-              {vouchers.map(v => (
-                <div key={v.id} className="flex items-center gap-3 px-5 py-4">
+            <ul className="flex flex-col gap-2.5">
+              {discounts.map(d => (
+                <li key={d.id} className={`bg-white rounded-xl border p-4 flex items-center gap-3 ${d.active ? 'border-border/80' : 'border-dashed border-border'}`}>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-3">
-                      <span className="font-bold font-mono text-navy text-lg tracking-widest">{v.code}</span>
-                      {!v.active && <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">Inactive</span>}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`font-mono font-semibold tracking-wider text-[15px] ${d.active ? 'text-navy' : 'text-navy/50'}`}>{d.code}</span>
+                      {!d.active && <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-cream text-text-secondary">Paused</span>}
                     </div>
-                    <div className="text-gray-500 text-sm mt-0.5">
-                      £{parseFloat(v.remaining_amount).toFixed(2)} remaining of £{parseFloat(v.original_amount).toFixed(2)}
-                      {v.expires_at && ` · expires ${new Date(v.expires_at).toLocaleDateString('en-GB')}`}
-                    </div>
+                    <p className="text-sm text-text-secondary mt-0.5">{describe(d)}</p>
                   </div>
+                  <Toggle
+                    checked={d.active}
+                    label={`${d.active ? 'Pause' : 'Activate'} ${d.code}`}
+                    disabled={busyId === d.id}
+                    onChange={() => run(d.id, () => adminPatch(`/discounts/${d.id}`, { active: !d.active }))}
+                  />
                   <button
-                    onClick={() => toggleVoucher(v)}
-                    className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${v.active ? 'bg-green-500' : 'bg-gray-300'}`}
+                    onClick={() => setConfirmDelete(d)}
+                    aria-label={`Delete ${d.code}`}
+                    className="w-11 h-11 -mr-1.5 shrink-0 rounded-lg flex items-center justify-center text-text-secondary hover:text-red-700 hover:bg-red-50 cursor-pointer"
                   >
-                    <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform ${v.active ? 'translate-x-6' : 'translate-x-1'}`} />
+                    <Icon name="trash" className="w-4.5 h-4.5" />
                   </button>
-                </div>
+                </li>
               ))}
-            </div>
+            </ul>
           )}
+        </>
+      ) : vouchers.length === 0 ? (
+        <div className="bg-white rounded-xl border border-border/80">
+          <EmptyState icon="gift" title="No gift vouchers yet" body="Vouchers bought by customers will appear here." />
         </div>
+      ) : (
+        <ul className="flex flex-col gap-2.5">
+          {vouchers.map(v => {
+            const used = 1 - parseFloat(v.remaining_amount) / (parseFloat(v.original_amount) || 1);
+            return (
+              <li key={v.id} className={`bg-white rounded-xl border p-4 flex items-center gap-3 ${v.active ? 'border-border/80' : 'border-dashed border-border'}`}>
+                <div className="flex-1 min-w-0">
+                  <span className={`font-mono font-semibold tracking-wider text-[15px] ${v.active ? 'text-navy' : 'text-navy/50'}`}>{v.code}</span>
+                  <p className="text-sm text-text-secondary mt-0.5">
+                    {gbp(v.remaining_amount)} left of {gbp(v.original_amount)}
+                    {v.expires_at && ` · ends ${new Date(v.expires_at).toLocaleDateString('en-GB')}`}
+                  </p>
+                  <div className="mt-2 h-1.5 rounded-full bg-cream overflow-hidden max-w-xs">
+                    <div className="h-full bg-brand/60" style={{ width: `${Math.min(100, Math.max(0, used * 100))}%` }} />
+                  </div>
+                </div>
+                <Toggle
+                  checked={v.active}
+                  label={`${v.active ? 'Pause' : 'Activate'} voucher ${v.code}`}
+                  disabled={busyId === v.id}
+                  onChange={() => run(v.id, () => adminPatch(`/vouchers/${v.id}`, { active: !v.active }))}
+                />
+              </li>
+            );
+          })}
+        </ul>
       )}
+
+      {/* ── Create code ── */}
+      <BottomSheet open={showAdd} onClose={() => setShowAdd(false)} label="New discount code">
+        <form
+          onSubmit={e => { e.preventDefault(); if (canCreate) add(); }}
+          className="flex flex-col gap-4"
+        >
+          <h2 className="font-heading text-2xl text-navy">New discount code</h2>
+
+          <div role="radiogroup" aria-label="Discount type" className="grid grid-cols-3 gap-1.5 p-1 rounded-lg bg-cream">
+            {TYPE_OPTS.map(t => (
+              <button
+                type="button"
+                key={t.value}
+                role="radio"
+                aria-checked={form.type === t.value}
+                onClick={() => setForm(f => ({ ...f, type: t.value }))}
+                className={`h-10 rounded-md text-sm font-semibold transition-colors cursor-pointer ${form.type === t.value ? 'bg-white text-navy shadow-sm' : 'text-navy/65'}`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className={form.type === 'free_shipping' ? 'col-span-2' : ''}>
+              <Field label="Code" htmlFor="code">
+                <input
+                  id="code"
+                  value={form.code}
+                  onChange={e => setForm(f => ({ ...f, code: e.target.value.toUpperCase().replace(/\s/g, '') }))}
+                  placeholder="SUMMER20"
+                  autoCapitalize="characters"
+                  className={`${inputCls} font-mono tracking-wider uppercase`}
+                />
+              </Field>
+            </div>
+            {form.type !== 'free_shipping' && (
+              <Field label={form.type === 'percentage' ? 'Percent off' : 'Amount off'} htmlFor="value">
+                <AffixInput
+                  id="value"
+                  prefix={form.type === 'fixed' ? '£' : undefined}
+                  suffix={form.type === 'percentage' ? '%' : undefined}
+                  type="number"
+                  inputMode="decimal"
+                  step={form.type === 'percentage' ? '1' : '0.01'}
+                  min="0"
+                  value={form.value}
+                  onChange={e => setForm(f => ({ ...f, value: e.target.value }))}
+                  placeholder={form.type === 'percentage' ? '20' : '5.00'}
+                />
+              </Field>
+            )}
+            <Field label="Min order" hint="Optional" htmlFor="min">
+              <AffixInput id="min" prefix="£" type="number" inputMode="decimal" step="0.01" min="0"
+                value={form.minOrder} onChange={e => setForm(f => ({ ...f, minOrder: e.target.value }))} placeholder="15.00" />
+            </Field>
+            <Field label="Max uses" hint="Optional" htmlFor="max">
+              <input id="max" type="number" inputMode="numeric" step="1" min="1"
+                value={form.maxUses} onChange={e => setForm(f => ({ ...f, maxUses: e.target.value }))} placeholder="100" className={inputCls} />
+            </Field>
+            <div className="col-span-2">
+              <Field label="Expires" hint="Optional — leave empty to never expire" htmlFor="exp">
+                <input id="exp" type="date" value={form.expiresAt}
+                  onChange={e => setForm(f => ({ ...f, expiresAt: e.target.value }))} className={inputCls} />
+              </Field>
+            </div>
+          </div>
+
+          {error && <Alert>{error}</Alert>}
+
+          <div className="grid grid-cols-2 gap-2 pt-1">
+            <Btn type="button" variant="secondary" size="lg" onClick={() => setShowAdd(false)}>Cancel</Btn>
+            <Btn type="submit" size="lg" disabled={adding || !canCreate}>{adding ? 'Creating…' : 'Create code'}</Btn>
+          </div>
+        </form>
+      </BottomSheet>
+
+      {/* ── Delete confirmation ── */}
+      <BottomSheet open={!!confirmDelete} onClose={() => setConfirmDelete(null)} label="Delete code">
+        {confirmDelete && (
+          <div className="flex flex-col gap-4">
+            <h2 className="font-heading text-2xl text-navy">Delete {confirmDelete.code}?</h2>
+            <p className="text-sm text-text-secondary">
+              Customers won’t be able to use this code any more. To stop it temporarily, pause it instead.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <Btn variant="secondary" size="lg" onClick={() => setConfirmDelete(null)}>Keep it</Btn>
+              <Btn
+                variant="danger"
+                size="lg"
+                disabled={busyId === confirmDelete.id}
+                onClick={async () => {
+                  const d = confirmDelete;
+                  await run(d.id, () => adminDelete(`/discounts/${d.id}`));
+                  setConfirmDelete(null);
+                }}
+              >
+                Delete
+              </Btn>
+            </div>
+          </div>
+        )}
+      </BottomSheet>
     </div>
   );
 }

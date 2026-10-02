@@ -32,3 +32,14 @@ Thumbs.db
 *.pem
 .idea/
 .vscode/
+
+# AI coding-assistant files (Claude Code etc.) — local tooling, not project code
+CLAUDE.md
+AGENTS.md
+CLAUDE.local.md
+.claude/
+.mcp.json
+design-system/
+
+# Ad-hoc screenshots dropped into public/ while developing
+/public/Screenshot*.png

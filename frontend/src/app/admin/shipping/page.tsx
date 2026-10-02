@@ -1,7 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { adminGet, adminPost, adminPatch, adminDelete } from '@/lib/adminApi';
+import BottomSheet from '@/components/configurator/BottomSheet';
+import { AffixInput, Alert, Btn, EmptyState, Field, Icon, PageHeader, SkeletonRows, Toggle, inputCls } from '@/components/admin/ui';
 
 interface ShippingMethod {
   id: string; zone_id: string; zone_name: string;
@@ -20,37 +22,33 @@ interface ShippingData {
 }
 
 const blank = {
-  zone_id: '', name: '', carrier: '', estimated_days_min: 3, estimated_days_max: 5,
+  zone_id: '', name: '', carrier: '', estimated_days_min: '3', estimated_days_max: '5',
   price: '0.00', free_over_amount: '',
 };
 
-function MethodCard({
-  method,
-  onSaved,
-  onDelete,
-}: {
-  method: ShippingMethod;
-  onSaved: () => void;
-  onDelete: () => void;
-}) {
-  const [active, setActive]   = useState(method.active);
-  const [price, setPrice]     = useState(parseFloat(method.price).toFixed(2));
+function MethodCard({ method, onChanged }: { method: ShippingMethod; onChanged: () => void }) {
+  const [active, setActive]     = useState(method.active);
+  const [price, setPrice]       = useState(parseFloat(method.price).toFixed(2));
   const [freeOver, setFreeOver] = useState(method.free_over_amount ?? '');
-  const [saving, setSaving]   = useState(false);
-  const [saved, setSaved]     = useState(false);
+  const [saving, setSaving]     = useState(false);
+  const [saved, setSaved]       = useState(false);
+  const [error, setError]       = useState('');
   const [confirming, setConfirming] = useState(false);
 
-  const save = async () => {
+  const save = async (activeValue = active) => {
     setSaving(true);
+    setError('');
     try {
       await adminPatch(`/shipping/methods/${method.id}`, {
-        active,
+        active: activeValue,
         price: parseFloat(price),
         free_over_amount: freeOver ? parseFloat(freeOver) : null,
       });
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
-      onSaved();
+      onChanged();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to save');
     } finally {
       setSaving(false);
     }
@@ -58,100 +56,88 @@ function MethodCard({
 
   const del = async () => {
     await adminDelete(`/shipping/methods/${method.id}`);
-    onDelete();
+    setConfirming(false);
+    onChanged();
   };
 
-  const typeLabel = method.name.toLowerCase().includes('express') ? '⚡ Express'
-    : method.name.toLowerCase().includes('free') ? '🎁 Free' : '📦 Standard';
+  const dirty = price !== parseFloat(method.price).toFixed(2) || freeOver !== (method.free_over_amount ?? '');
 
   return (
-    <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-5">
-      <div className="flex items-start justify-between gap-3 mb-3">
-        <div>
-          <div className="font-bold text-navy text-lg">{method.name}</div>
-          <div className="text-sm text-gray-500">{method.zone_name} · {typeLabel}</div>
-          {method.carrier && <div className="text-sm text-gray-400">{method.carrier}</div>}
-          <div className="text-sm text-gray-400">{method.estimated_days_min}–{method.estimated_days_max} days</div>
+    <div className={`bg-white rounded-xl border p-4 sm:p-5 flex flex-col gap-4 ${active ? 'border-border/80' : 'border-dashed border-border'}`}>
+      <div className="flex items-start gap-3">
+        <span className="w-10 h-10 rounded-lg bg-cream text-brand flex items-center justify-center shrink-0">
+          <Icon name="shipping" />
+        </span>
+        <div className="flex-1 min-w-0">
+          <p className={`font-semibold ${active ? 'text-navy' : 'text-navy/55'}`}>{method.name}</p>
+          <p className="text-sm text-text-secondary">
+            {[method.carrier, method.estimated_days_min != null && `${method.estimated_days_min}–${method.estimated_days_max} days`].filter(Boolean).join(' · ')}
+          </p>
         </div>
-        <button
-          onClick={() => setActive(a => !a)}
-          className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors ${active ? 'bg-green-500' : 'bg-gray-300'}`}
-        >
-          <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform ${active ? 'translate-x-6' : 'translate-x-1'}`} />
-        </button>
+        {/* Toggling saves immediately, like everywhere else in the admin */}
+        <Toggle
+          checked={active}
+          label={`${active ? 'Turn off' : 'Turn on'} ${method.name}`}
+          disabled={saving}
+          onChange={() => { const next = !active; setActive(next); save(next); }}
+        />
       </div>
 
-      <div className="flex flex-col gap-2">
-        <div className="flex gap-2">
-          <div className="flex-1">
-            <label className="text-xs font-bold text-gray-500 uppercase tracking-wide">Price (£)</label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-bold text-sm">£</span>
-              <input
-                type="number" step="0.01" min="0"
-                value={price} onChange={e => setPrice(e.target.value)}
-                className="w-full border border-gray-200 rounded-xl pl-7 pr-3 py-2 text-sm focus:outline-none focus:border-coral"
-              />
-            </div>
-          </div>
-          <div className="flex-1">
-            <label className="text-xs font-bold text-gray-500 uppercase tracking-wide">Free over (£)</label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-bold text-sm">£</span>
-              <input
-                type="number" step="0.01" min="0"
-                placeholder="e.g. 30"
-                value={freeOver} onChange={e => setFreeOver(e.target.value)}
-                className="w-full border border-gray-200 rounded-xl pl-7 pr-3 py-2 text-sm focus:outline-none focus:border-coral"
-              />
-            </div>
-          </div>
-        </div>
+      <div className="grid grid-cols-2 gap-2.5">
+        <Field label="Price" htmlFor={`p-${method.id}`}>
+          <AffixInput id={`p-${method.id}`} prefix="£" type="number" inputMode="decimal" step="0.01" min="0"
+            value={price} onChange={e => setPrice(e.target.value)} />
+        </Field>
+        <Field label="Free over" htmlFor={`f-${method.id}`}>
+          <AffixInput id={`f-${method.id}`} prefix="£" type="number" inputMode="decimal" step="0.01" min="0"
+            placeholder="Never" value={freeOver} onChange={e => setFreeOver(e.target.value)} />
+        </Field>
+      </div>
 
-        <div className="flex gap-2">
+      {error && <Alert>{error}</Alert>}
+
+      <div className="flex gap-2">
+        <Btn variant={dirty ? 'primary' : 'secondary'} onClick={() => save()} disabled={saving || (!dirty && !saved)} className="flex-1">
+          {saving ? 'Saving…' : saved ? <><Icon name="check" className="w-4 h-4" /> Saved</> : 'Save'}
+        </Btn>
+        {confirming ? (
+          <>
+            <Btn variant="secondary" onClick={() => setConfirming(false)}>Cancel</Btn>
+            <Btn variant="danger" onClick={del}>Delete</Btn>
+          </>
+        ) : (
           <button
-            onClick={save} disabled={saving}
-            className={`flex-1 py-2 rounded-xl font-bold text-sm transition-all ${saved ? 'bg-green-500 text-white' : 'bg-coral text-white hover:bg-coral/90'} disabled:opacity-50`}
+            onClick={() => setConfirming(true)}
+            aria-label={`Delete ${method.name}`}
+            className="w-11 h-11 shrink-0 rounded-lg border border-border flex items-center justify-center text-text-secondary hover:text-red-700 hover:border-red-200 hover:bg-red-50 cursor-pointer"
           >
-            {saving ? '…' : saved ? '✅ Saved' : '💾 Save'}
+            <Icon name="trash" className="w-4.5 h-4.5" />
           </button>
-          {confirming ? (
-            <button onClick={del} className="px-3 py-2 rounded-xl bg-red-500 text-white font-bold text-sm hover:bg-red-600">
-              Confirm Delete
-            </button>
-          ) : (
-            <button onClick={() => setConfirming(true)} className="px-3 py-2 rounded-xl bg-gray-100 text-gray-600 font-bold text-sm hover:bg-red-50 hover:text-red-600">
-              🗑️
-            </button>
-          )}
-        </div>
+        )}
       </div>
     </div>
   );
 }
 
 export default function AdminShippingPage() {
-  const [data, setData]         = useState<ShippingData | null>(null);
-  const [loading, setLoading]   = useState(true);
-  const [showAdd, setShowAdd]   = useState(false);
-  const [form, setForm]         = useState(blank);
-  const [adding, setAdding]     = useState(false);
-  const [error, setError]       = useState('');
+  const [data, setData]       = useState<ShippingData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [showAdd, setShowAdd] = useState(false);
+  const [form, setForm]       = useState(blank);
+  const [adding, setAdding]   = useState(false);
+  const [error, setError]     = useState('');
 
-  const load = async () => {
-    setLoading(true);
+  const load = useCallback(async () => {
     try {
       const d = await adminGet<ShippingData>('/shipping');
       setData(d);
-      if (d.zones[0] && !form.zone_id) {
-        setForm(f => ({ ...f, zone_id: d.zones[0].id }));
-      }
+      setForm(f => (f.zone_id || !d.zones[0] ? f : { ...f, zone_id: d.zones[0].id }));
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
   const add = async () => {
     setAdding(true);
@@ -168,7 +154,7 @@ export default function AdminShippingPage() {
       });
       setShowAdd(false);
       setForm({ ...blank, zone_id: data?.zones[0]?.id ?? '' });
-      load();
+      await load();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed');
     } finally {
@@ -176,158 +162,86 @@ export default function AdminShippingPage() {
     }
   };
 
-  if (loading) return <div className="text-center py-16 text-4xl animate-pulse">🚚</div>;
-
   const zones = data?.zones ?? [];
   const methods = data?.methods ?? [];
+  const set = (k: keyof typeof blank) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+    setForm(f => ({ ...f, [k]: e.target.value }));
 
   return (
-    <div className="flex flex-col gap-8">
-      <div className="flex items-start justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-4xl font-heading font-bold text-navy">🚚 Shipping</h1>
-          <p className="text-gray-500 mt-1 text-lg">Set your delivery options and prices.</p>
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        title="Shipping"
+        subtitle="Delivery options and prices customers see at checkout."
+        action={
+          <Btn onClick={() => { setError(''); setShowAdd(true); }} className="hidden sm:inline-flex">
+            <Icon name="plus" className="w-4 h-4" /> Add method
+          </Btn>
+        }
+      />
+
+      <Btn size="lg" onClick={() => { setError(''); setShowAdd(true); }} className="sm:hidden w-full">
+        <Icon name="plus" className="w-5 h-5" /> Add delivery method
+      </Btn>
+
+      {loading ? (
+        <SkeletonRows rows={3} />
+      ) : methods.length === 0 ? (
+        <div className="bg-white rounded-xl border border-border/80">
+          <EmptyState icon="shipping" title="No delivery methods yet" body="Customers can’t check out until you add at least one." />
         </div>
-        <button
-          onClick={() => setShowAdd(s => !s)}
-          className="bg-coral text-white font-bold px-6 py-3 rounded-2xl hover:bg-coral/90 active:scale-95 transition-all text-lg"
-        >
-          ➕ Add Method
-        </button>
-      </div>
-
-      {/* Add form */}
-      {showAdd && (
-        <div className="bg-white rounded-3xl border border-coral/30 shadow-sm p-6">
-          <h2 className="text-xl font-heading font-bold text-navy mb-5">New Shipping Method</h2>
-          <div className="flex flex-col gap-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {/* Zone */}
-              <div>
-                <label className="block font-bold text-navy mb-1">Shipping Zone</label>
-                <select
-                  value={form.zone_id}
-                  onChange={e => setForm(f => ({ ...f, zone_id: e.target.value }))}
-                  className="w-full border border-gray-200 rounded-2xl px-4 py-3 text-base focus:outline-none focus:border-coral bg-white"
-                >
-                  {zones.map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
-                </select>
+      ) : (
+        zones.map(zone => {
+          const zoneMethods = methods.filter(m => m.zone_id === zone.id);
+          if (!zoneMethods.length) return null;
+          return (
+            <section key={zone.id} className="flex flex-col gap-3">
+              <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">{zone.name}</h2>
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                {zoneMethods.map(m => <MethodCard key={m.id} method={m} onChanged={load} />)}
               </div>
-              {/* Name */}
-              <div>
-                <label className="block font-bold text-navy mb-1">Display Name</label>
-                <input
-                  value={form.name}
-                  onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                  placeholder="e.g. Standard Delivery"
-                  className="w-full border border-gray-200 rounded-2xl px-4 py-3 text-base focus:outline-none focus:border-coral"
-                />
-              </div>
-              {/* Carrier */}
-              <div>
-                <label className="block font-bold text-navy mb-1">Carrier</label>
-                <input
-                  value={form.carrier}
-                  onChange={e => setForm(f => ({ ...f, carrier: e.target.value }))}
-                  placeholder="Royal Mail"
-                  className="w-full border border-gray-200 rounded-2xl px-4 py-3 text-base focus:outline-none focus:border-coral"
-                />
-              </div>
-              {/* Price */}
-              <div>
-                <label className="block font-bold text-navy mb-1">Price (£)</label>
-                <div className="relative">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold">£</span>
-                  <input
-                    type="number" step="0.01" min="0"
-                    value={form.price}
-                    onChange={e => setForm(f => ({ ...f, price: e.target.value }))}
-                    className="w-full border border-gray-200 rounded-2xl pl-8 pr-4 py-3 text-base focus:outline-none focus:border-coral"
-                  />
-                </div>
-              </div>
-              {/* Days */}
-              <div>
-                <label className="block font-bold text-navy mb-1">Min Days</label>
-                <input
-                  type="number" min="0"
-                  value={form.estimated_days_min}
-                  onChange={e => setForm(f => ({ ...f, estimated_days_min: Number(e.target.value) }))}
-                  className="w-full border border-gray-200 rounded-2xl px-4 py-3 text-base focus:outline-none focus:border-coral"
-                />
-              </div>
-              <div>
-                <label className="block font-bold text-navy mb-1">Max Days</label>
-                <input
-                  type="number" min="0"
-                  value={form.estimated_days_max}
-                  onChange={e => setForm(f => ({ ...f, estimated_days_max: Number(e.target.value) }))}
-                  className="w-full border border-gray-200 rounded-2xl px-4 py-3 text-base focus:outline-none focus:border-coral"
-                />
-              </div>
-              {/* Free over */}
-              <div>
-                <label className="block font-bold text-navy mb-1">Free over (£) — optional</label>
-                <div className="relative">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold">£</span>
-                  <input
-                    type="number" step="0.01" min="0"
-                    placeholder="e.g. 30"
-                    value={form.free_over_amount}
-                    onChange={e => setForm(f => ({ ...f, free_over_amount: e.target.value }))}
-                    className="w-full border border-gray-200 rounded-2xl pl-8 pr-4 py-3 text-base focus:outline-none focus:border-coral"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3">
-                ⚠️ {error}
-              </div>
-            )}
-
-            <div className="flex gap-3">
-              <button
-                onClick={add} disabled={adding || !form.name || !form.zone_id}
-                className="flex-1 py-4 bg-coral text-white font-bold text-lg rounded-2xl hover:bg-coral/90 disabled:opacity-50"
-              >
-                {adding ? 'Adding…' : '✅ Add Shipping Method'}
-              </button>
-              <button
-                onClick={() => setShowAdd(false)}
-                className="px-5 py-4 bg-gray-100 text-gray-600 font-bold rounded-2xl hover:bg-gray-200"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
+            </section>
+          );
+        })
       )}
 
-      {/* Grouped by zone */}
-      {zones.map(zone => {
-        const zoneMethods = methods.filter(m => m.zone_id === zone.id);
-        if (zoneMethods.length === 0) return null;
-        return (
-          <div key={zone.id}>
-            <h2 className="text-xl font-heading font-bold text-navy mb-3">
-              🌍 {zone.name}
-            </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {zoneMethods.map(m => (
-                <MethodCard key={m.id} method={m} onSaved={load} onDelete={load} />
-              ))}
-            </div>
-          </div>
-        );
-      })}
+      <BottomSheet open={showAdd} onClose={() => setShowAdd(false)} label="New delivery method">
+        <form onSubmit={e => { e.preventDefault(); if (form.name && form.zone_id) add(); }} className="flex flex-col gap-4">
+          <h2 className="font-heading text-2xl text-navy">New delivery method</h2>
 
-      {methods.length === 0 && (
-        <div className="text-center py-16 text-gray-400 text-xl">
-          No shipping methods yet — add one above! 🚚
-        </div>
-      )}
+          <Field label="Zone" htmlFor="zone">
+            <select id="zone" value={form.zone_id} onChange={set('zone_id')} className={inputCls}>
+              {zones.map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
+            </select>
+          </Field>
+          <Field label="Name customers see" htmlFor="name">
+            <input id="name" value={form.name} onChange={set('name')} placeholder="Standard delivery" className={inputCls} />
+          </Field>
+          <Field label="Carrier" htmlFor="carrier">
+            <input id="carrier" value={form.carrier} onChange={set('carrier')} placeholder="Royal Mail" className={inputCls} />
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Price" htmlFor="price">
+              <AffixInput id="price" prefix="£" type="number" inputMode="decimal" step="0.01" min="0" value={form.price} onChange={set('price')} />
+            </Field>
+            <Field label="Free over" hint="Optional" htmlFor="free">
+              <AffixInput id="free" prefix="£" type="number" inputMode="decimal" step="0.01" min="0" placeholder="30" value={form.free_over_amount} onChange={set('free_over_amount')} />
+            </Field>
+            <Field label="Min days" htmlFor="dmin">
+              <input id="dmin" type="number" inputMode="numeric" min="0" value={form.estimated_days_min} onChange={set('estimated_days_min')} className={inputCls} />
+            </Field>
+            <Field label="Max days" htmlFor="dmax">
+              <input id="dmax" type="number" inputMode="numeric" min="0" value={form.estimated_days_max} onChange={set('estimated_days_max')} className={inputCls} />
+            </Field>
+          </div>
+
+          {error && <Alert>{error}</Alert>}
+
+          <div className="grid grid-cols-2 gap-2 pt-1">
+            <Btn type="button" variant="secondary" size="lg" onClick={() => setShowAdd(false)}>Cancel</Btn>
+            <Btn type="submit" size="lg" disabled={adding || !form.name || !form.zone_id}>{adding ? 'Adding…' : 'Add method'}</Btn>
+          </div>
+        </form>
+      </BottomSheet>
     </div>
   );
 }

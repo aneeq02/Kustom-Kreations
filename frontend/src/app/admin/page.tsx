@@ -3,28 +3,8 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { adminGet } from '@/lib/adminApi';
-
-const STATUS_LABEL: Record<string, string> = {
-  pending:            'New Order',
-  payment_processing: 'Paying',
-  paid:               'Paid',
-  in_production:      'Being Made',
-  dispatched:         'Shipped',
-  delivered:          'Delivered',
-  cancelled:          'Cancelled',
-  refunded:           'Refunded',
-};
-
-const STATUS_COLOR: Record<string, string> = {
-  pending:            'bg-yellow-100 text-yellow-800',
-  payment_processing: 'bg-blue-100 text-blue-800',
-  paid:               'bg-green-100 text-green-800',
-  in_production:      'bg-purple-100 text-purple-800',
-  dispatched:         'bg-indigo-100 text-indigo-800',
-  delivered:          'bg-emerald-100 text-emerald-800',
-  cancelled:          'bg-red-100 text-red-800',
-  refunded:           'bg-gray-100 text-gray-700',
-};
+import { STATUS_LABEL, STATUS_TONE, gbp, shortDate } from '@/lib/adminStatus';
+import { Alert, EmptyState, Icon, PageHeader, Panel, StatusBadge } from '@/components/admin/ui';
 
 interface DashboardData {
   totalOrders:     number;
@@ -40,25 +20,30 @@ interface DashboardData {
   statusBreakdown: Array<{ status: string; count: string }>;
 }
 
-function StatCard({
-  icon, label, value, sub, color,
-}: {
-  icon: string; label: string; value: string; sub?: string; color: string;
-}) {
+function greeting() {
+  const h = new Date().getHours();
+  return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
+}
+
+function Stat({ icon, label, value, sub, accent }: { icon: string; label: string; value: string; sub?: string; accent?: boolean }) {
   return (
-    <div className={`rounded-3xl p-6 flex flex-col gap-2 shadow-sm ${color}`}>
-      <div className="text-4xl">{icon}</div>
-      <div className="text-3xl font-heading font-bold">{value}</div>
-      <div className="font-semibold text-base opacity-80">{label}</div>
-      {sub && <div className="text-sm opacity-60">{sub}</div>}
+    <div className={`rounded-xl border p-4 sm:p-5 flex flex-col gap-3 ${accent ? 'bg-brand border-brand text-white' : 'bg-white border-border/80 text-navy'}`}>
+      <span className={`w-9 h-9 rounded-lg flex items-center justify-center ${accent ? 'bg-white/15' : 'bg-cream text-brand'}`}>
+        <Icon name={icon} className="w-4.5 h-4.5" />
+      </span>
+      <div>
+        <div className="font-heading text-[1.9rem] sm:text-4xl leading-none tabular-nums">{value}</div>
+        <div className={`text-[13px] font-medium mt-1.5 ${accent ? 'text-white/85' : 'text-navy/70'}`}>{label}</div>
+        {sub && <div className={`text-xs mt-0.5 ${accent ? 'text-white/65' : 'text-text-secondary'}`}>{sub}</div>}
+      </div>
     </div>
   );
 }
 
 export default function AdminDashboard() {
-  const [data, setData]     = useState<DashboardData | null>(null);
+  const [data, setData]       = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError]   = useState('');
+  const [error, setError]     = useState('');
 
   useEffect(() => {
     adminGet<DashboardData>('/dashboard')
@@ -67,148 +52,145 @@ export default function AdminDashboard() {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return (
-    <div className="flex items-center justify-center h-64 text-4xl animate-pulse">
-      📊
-    </div>
-  );
+  if (loading) {
+    return (
+      <div className="flex flex-col gap-6" aria-busy="true">
+        <div className="h-12 w-56 rounded-lg bg-white animate-pulse" />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {[0, 1, 2, 3].map(i => <div key={i} className="h-36 rounded-xl bg-white border border-border/70 animate-pulse" />)}
+        </div>
+        <div className="h-72 rounded-xl bg-white border border-border/70 animate-pulse" />
+      </div>
+    );
+  }
 
-  if (error) return (
-    <div className="bg-red-50 border border-red-200 rounded-2xl p-6 text-red-700 text-lg">
-      ⚠️ {error}
-    </div>
-  );
-
+  if (error) return <Alert>{error}</Alert>;
   if (!data) return null;
 
-  const pendingCount = data.statusBreakdown.find(s => s.status === 'pending')?.count ?? '0';
-  const productionCount = data.statusBreakdown.find(s => s.status === 'in_production')?.count ?? '0';
+  const count = (s: string) => Number(data.statusBreakdown.find(x => x.status === s)?.count ?? 0);
+  const toMake = count('paid');
+  const making = count('in_production');
+  const breakdownTotal = data.statusBreakdown.reduce((s, x) => s + Number(x.count), 0);
 
   return (
-    <div className="flex flex-col gap-8">
-      {/* Header */}
-      <div>
-        <h1 className="text-4xl font-heading font-bold text-navy">👋 Hello!</h1>
-        <p className="text-gray-500 text-lg mt-1">Here's what's happening in your shop today.</p>
+    <div className="flex flex-col gap-6 sm:gap-8">
+      <PageHeader title={greeting()} subtitle="Here’s what’s happening in your shop today." />
+
+      {/* Needs attention */}
+      {toMake > 0 && (
+        <Link
+          href="/admin/orders"
+          className="flex items-center gap-3 rounded-xl bg-white border border-brand/25 px-4 py-3.5 hover:border-brand/50 transition-colors"
+        >
+          <span className="w-10 h-10 rounded-full bg-brand-light text-brand flex items-center justify-center shrink-0">
+            <Icon name="bell" />
+          </span>
+          <span className="flex-1 min-w-0">
+            <span className="block font-semibold text-navy">
+              {toMake} paid order{toMake > 1 ? 's' : ''} ready to make
+            </span>
+            <span className="block text-sm text-text-secondary">
+              {making > 0 ? `${making} already in production` : 'Tap to start working through them'}
+            </span>
+          </span>
+          <Icon name="chevron" className="w-5 h-5 text-text-secondary shrink-0" />
+        </Link>
+      )}
+
+      {/* Stats */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <Stat icon="pound" label="Total sales" value={gbp(data.revenue)} sub={`${gbp(data.todayRevenue)} today`} accent />
+        <Stat icon="orders" label="Orders" value={data.totalOrders.toString()} sub={`${data.todayOrders} today`} />
+        <Stat icon="clock" label="To make" value={toMake.toString()} sub={`${making} in production`} />
+        <Stat icon="customers" label="Customers" value={data.totalCustomers.toString()} sub="registered accounts" />
       </div>
 
-      {/* Stat cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard
-          icon="📦"
-          label="Total Orders"
-          value={data.totalOrders.toString()}
-          sub={`${data.todayOrders} new today`}
-          color="bg-blue-50 text-blue-900"
-        />
-        <StatCard
-          icon="💰"
-          label="Total Sales"
-          value={`£${data.revenue.toFixed(2)}`}
-          sub={`£${data.todayRevenue.toFixed(2)} today`}
-          color="bg-green-50 text-green-900"
-        />
-        <StatCard
-          icon="⏳"
-          label="Need Making"
-          value={pendingCount}
-          sub="orders waiting"
-          color="bg-yellow-50 text-yellow-900"
-        />
-        <StatCard
-          icon="👥"
-          label="Customers"
-          value={data.totalCustomers.toString()}
-          color="bg-purple-50 text-purple-900"
-        />
-      </div>
-
-      {/* Quick actions */}
-      <div>
-        <h2 className="text-2xl font-heading font-bold text-navy mb-4">Quick Actions</h2>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          {[
-            { href: '/admin/orders',    icon: '📦', label: 'View All Orders',   color: 'bg-coral text-white' },
-            { href: '/admin/products',  icon: '🧲', label: 'Manage Products',   color: 'bg-navy text-white' },
-            { href: '/admin/discounts', icon: '🎟️', label: 'Add Discount Code', color: 'bg-green-600 text-white' },
-            { href: '/admin/shipping',  icon: '🚚', label: 'Shipping Settings', color: 'bg-indigo-600 text-white' },
-          ].map(a => (
-            <Link
-              key={a.href}
-              href={a.href}
-              className={`flex flex-col items-center gap-3 p-5 rounded-3xl font-bold text-center text-lg shadow-sm hover:opacity-90 active:scale-95 transition-all ${a.color}`}
-            >
-              <span className="text-4xl">{a.icon}</span>
-              <span className="leading-tight">{a.label}</span>
-            </Link>
-          ))}
-        </div>
-      </div>
-
-      {/* Recent orders */}
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-2xl font-heading font-bold text-navy">Recent Orders</h2>
-          <Link href="/admin/orders" className="text-coral font-semibold text-base hover:underline">
-            See all →
-          </Link>
-        </div>
-
-        <div className="bg-white rounded-3xl shadow-sm overflow-hidden border border-gray-100">
+      <div className="grid lg:grid-cols-[1fr_340px] gap-4 sm:gap-6 items-start">
+        {/* Recent orders */}
+        <Panel
+          title="Recent orders"
+          flush
+          action={<Link href="/admin/orders" className="text-sm font-medium text-brand hover:underline py-2">See all</Link>}
+        >
           {data.recentOrders.length === 0 ? (
-            <div className="p-12 text-center text-gray-400 text-xl">
-              No orders yet! 🕐
-            </div>
+            <EmptyState icon="orders" title="No orders yet" body="New orders will appear here as soon as they come in." />
           ) : (
-            <div className="divide-y divide-gray-50">
+            <ul className="divide-y divide-border/70 border-t border-border/70">
               {data.recentOrders.map(order => (
+                <li key={order.id}>
+                  <Link
+                    href={`/admin/orders/${order.id}`}
+                    className="flex items-center gap-3 px-4 sm:px-5 py-3.5 hover:bg-cream/60 transition-colors"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold text-navy text-[15px]">{order.order_number}</span>
+                        <StatusBadge status={order.status} />
+                      </div>
+                      <div className="text-sm text-text-secondary truncate mt-0.5">
+                        {order.shipping_first_name} {order.shipping_last_name}
+                        <span className="hidden sm:inline">{order.email && ` · ${order.email}`}</span>
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="font-semibold text-navy tabular-nums">{gbp(order.total)}</div>
+                      <div className="text-xs text-text-secondary">{shortDate(order.created_at)}</div>
+                    </div>
+                    <Icon name="chevron" className="w-4 h-4 text-text-secondary/70 shrink-0" />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Panel>
+
+        <div className="flex flex-col gap-4 sm:gap-6">
+          {/* Status overview */}
+          {breakdownTotal > 0 && (
+            <Panel title="Orders by status">
+              <div className="flex h-2.5 rounded-full overflow-hidden bg-cream mb-4" role="img" aria-label="Orders by status">
+                {data.statusBreakdown.map(s => (
+                  <span
+                    key={s.status}
+                    className={(STATUS_TONE[s.status] ?? STATUS_TONE.refunded).dot}
+                    style={{ width: `${(Number(s.count) / breakdownTotal) * 100}%` }}
+                  />
+                ))}
+              </div>
+              <ul className="grid grid-cols-2 gap-x-4 gap-y-2.5">
+                {data.statusBreakdown.map(s => (
+                  <li key={s.status} className="flex items-center gap-2 text-sm">
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${(STATUS_TONE[s.status] ?? STATUS_TONE.refunded).dot}`} />
+                    <span className="text-navy/80 truncate">{STATUS_LABEL[s.status] ?? s.status}</span>
+                    <span className="ml-auto font-semibold text-navy tabular-nums">{s.count}</span>
+                  </li>
+                ))}
+              </ul>
+            </Panel>
+          )}
+
+          {/* Quick actions */}
+          <Panel title="Quick actions">
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { href: '/admin/orders',    icon: 'orders',    label: 'Orders' },
+                { href: '/admin/products',  icon: 'products',  label: 'Prices' },
+                { href: '/admin/discounts', icon: 'discounts', label: 'New code' },
+                { href: '/admin/shipping',  icon: 'shipping',  label: 'Delivery' },
+              ].map(a => (
                 <Link
-                  key={order.id}
-                  href={`/admin/orders/${order.id}`}
-                  className="flex items-center gap-4 px-6 py-4 hover:bg-coral-light/20 transition-colors"
+                  key={a.href}
+                  href={a.href}
+                  className="flex flex-col items-start gap-2 rounded-lg border border-border p-3.5 hover:border-brand/40 hover:bg-brand-light/40 transition-colors"
                 >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <span className="font-bold text-navy text-lg">{order.order_number}</span>
-                      <span className={`text-sm font-semibold px-3 py-0.5 rounded-full ${STATUS_COLOR[order.status] ?? 'bg-gray-100 text-gray-700'}`}>
-                        {STATUS_LABEL[order.status] ?? order.status}
-                      </span>
-                    </div>
-                    <div className="text-gray-500 text-sm mt-0.5">
-                      {order.shipping_first_name} {order.shipping_last_name}
-                      {order.email && ` · ${order.email}`}
-                    </div>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <div className="font-bold text-navy text-lg">£{parseFloat(order.total).toFixed(2)}</div>
-                    <div className="text-gray-400 text-xs">
-                      {new Date(order.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
-                    </div>
-                  </div>
-                  <span className="text-gray-300 text-xl">›</span>
+                  <Icon name={a.icon} className="w-5 h-5 text-brand" />
+                  <span className="text-sm font-medium text-navy">{a.label}</span>
                 </Link>
               ))}
             </div>
-          )}
+          </Panel>
         </div>
       </div>
-
-      {/* Order status breakdown */}
-      {data.statusBreakdown.length > 0 && (
-        <div>
-          <h2 className="text-2xl font-heading font-bold text-navy mb-4">Order Status Overview</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {data.statusBreakdown.map(s => (
-              <div key={s.status} className="bg-white rounded-2xl p-4 text-center border border-gray-100 shadow-sm">
-                <div className="text-2xl font-bold text-navy">{s.count}</div>
-                <div className={`text-xs font-semibold px-2 py-0.5 rounded-full mt-1 inline-block ${STATUS_COLOR[s.status] ?? 'bg-gray-100 text-gray-700'}`}>
-                  {STATUS_LABEL[s.status] ?? s.status}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

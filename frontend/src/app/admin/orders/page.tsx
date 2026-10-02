@@ -3,52 +3,18 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { adminGet, adminPatch } from '@/lib/adminApi';
+import { NEXT_STATUS, gbp, shortDate } from '@/lib/adminStatus';
+import { Btn, EmptyState, Icon, PageHeader, Pagination, SearchBox, SkeletonRows, StatusBadge } from '@/components/admin/ui';
 
-const STATUSES = [
-  { value: '',               label: 'All Orders' },
-  { value: 'paid',           label: '✅ Paid' },
-  { value: 'in_production',  label: '🔨 Making' },
-  { value: 'dispatched',     label: '🚚 Shipped' },
-  { value: 'delivered',      label: '🎉 Done' },
-  { value: 'cancelled',      label: '❌ Cancelled' },
-  { value: 'refunded',       label: '💸 Refunded' },
+const FILTERS = [
+  { value: '',              label: 'All' },
+  { value: 'paid',          label: 'Paid' },
+  { value: 'in_production', label: 'Being made' },
+  { value: 'dispatched',    label: 'Shipped' },
+  { value: 'delivered',     label: 'Delivered' },
+  { value: 'cancelled',     label: 'Cancelled' },
+  { value: 'refunded',      label: 'Refunded' },
 ];
-
-const STATUS_LABEL: Record<string, string> = {
-  pending:            'New Order',
-  payment_processing: 'Paying',
-  paid:               'Paid',
-  in_production:      'Being Made',
-  dispatched:         'Shipped',
-  delivered:          'Delivered',
-  cancelled:          'Cancelled',
-  refunded:           'Refunded',
-};
-
-const STATUS_COLOR: Record<string, string> = {
-  pending:            'bg-yellow-100 text-yellow-800',
-  payment_processing: 'bg-blue-100 text-blue-800',
-  paid:               'bg-green-100 text-green-800',
-  in_production:      'bg-purple-100 text-purple-800',
-  dispatched:         'bg-indigo-100 text-indigo-800',
-  delivered:          'bg-emerald-100 text-emerald-800',
-  cancelled:          'bg-red-100 text-red-800',
-  refunded:           'bg-gray-100 text-gray-700',
-};
-
-// Next status in the workflow
-const NEXT_STATUS: Record<string, string> = {
-  pending:    'in_production',
-  paid:       'in_production',
-  in_production: 'dispatched',
-  dispatched: 'delivered',
-};
-const NEXT_LABEL: Record<string, string> = {
-  pending:    '▶ Start Making',
-  paid:       '▶ Start Making',
-  in_production: '🚚 Mark Shipped',
-  dispatched: '✅ Mark Delivered',
-};
 
 interface Order {
   id: string; order_number: string; status: string;
@@ -65,168 +31,139 @@ interface OrdersResponse {
 }
 
 export default function AdminOrdersPage() {
-  const [data, setData]           = useState<OrdersResponse | null>(null);
-  const [loading, setLoading]     = useState(true);
-  const [status, setStatus]       = useState('');
-  const [search, setSearch]       = useState('');
-  const [page, setPage]           = useState(1);
-  const [updating, setUpdating]   = useState<string | null>(null);
+  const [data, setData]         = useState<OrdersResponse | null>(null);
+  const [loading, setLoading]   = useState(true);
+  const [status, setStatus]     = useState('');
+  const [search, setSearch]     = useState('');
+  const [query, setQuery]       = useState('');
+  const [page, setPage]         = useState(1);
+  const [updating, setUpdating] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams({ page: page.toString(), limit: '20' });
       if (status) params.set('status', status);
-      if (search) params.set('search', search);
-      const res = await adminGet<OrdersResponse>(`/orders?${params}`);
-      setData(res);
+      if (query) params.set('search', query);
+      setData(await adminGet<OrdersResponse>(`/orders?${params}`));
     } finally {
       setLoading(false);
     }
-  }, [page, status, search]);
+  }, [page, status, query]);
 
   useEffect(() => { load(); }, [load]);
-
-  const handleSearch = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setPage(1);
-    load();
-  };
 
   const advanceStatus = async (orderId: string, nextStatus: string) => {
     setUpdating(orderId);
     try {
       await adminPatch(`/orders/${orderId}`, { status: nextStatus });
-      load();
+      await load();
     } finally {
       setUpdating(null);
     }
   };
 
   return (
-    <div className="flex flex-col gap-6">
-      <h1 className="text-4xl font-heading font-bold text-navy">📦 All Orders</h1>
+    <div className="flex flex-col gap-5">
+      <PageHeader
+        title="Orders"
+        subtitle={data ? `${data.total} order${data.total !== 1 ? 's' : ''}${status ? ' in this view' : ''}` : undefined}
+      />
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <form onSubmit={handleSearch} className="flex gap-2 flex-1">
-          <input
-            type="search"
-            placeholder="Search by name, email or order #"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="flex-1 border border-gray-200 rounded-2xl px-4 py-3 text-base focus:outline-none focus:border-coral"
-          />
-          <button type="submit" className="bg-coral text-white px-5 py-3 rounded-2xl font-bold hover:bg-coral/90">
-            🔍
-          </button>
-        </form>
+      <SearchBox
+        value={search}
+        onChange={setSearch}
+        onSubmit={() => { setPage(1); setQuery(search.trim()); }}
+        placeholder="Search name, email or order #"
+      />
+
+      {/* Filter chips — swipe sideways on phones */}
+      <div className="-mx-4 px-4 sm:mx-0 sm:px-0 overflow-x-auto no-scrollbar">
+        <div className="flex gap-2 w-max" role="tablist" aria-label="Filter by status">
+          {FILTERS.map(s => (
+            <button
+              key={s.value}
+              role="tab"
+              aria-selected={status === s.value}
+              onClick={() => { setStatus(s.value); setPage(1); }}
+              className={`h-9 px-4 rounded-full text-sm font-medium border transition-colors whitespace-nowrap cursor-pointer ${
+                status === s.value
+                  ? 'bg-navy text-white border-navy'
+                  : 'bg-white text-navy/75 border-border hover:border-navy/40'
+              }`}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* Status pills */}
-      <div className="flex gap-2 flex-wrap">
-        {STATUSES.map(s => (
-          <button
-            key={s.value}
-            onClick={() => { setStatus(s.value); setPage(1); }}
-            className={`px-4 py-2 rounded-full font-semibold text-sm border transition-all ${
-              status === s.value
-                ? 'bg-navy text-white border-navy'
-                : 'bg-white text-gray-600 border-gray-200 hover:border-navy'
-            }`}
-          >
-            {s.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Orders list */}
       {loading ? (
-        <div className="text-center py-16 text-4xl animate-pulse">📦</div>
+        <SkeletonRows rows={6} />
+      ) : !data?.orders.length ? (
+        <div className="bg-white rounded-xl border border-border/80">
+          <EmptyState
+            icon="orders"
+            title="No orders found"
+            body={query || status ? 'Try a different search or filter.' : 'Orders will appear here as they come in.'}
+          />
+        </div>
       ) : (
-        <>
-          <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
-            {!data?.orders.length ? (
-              <div className="py-16 text-center text-gray-400 text-xl">
-                No orders found 🕐
-              </div>
-            ) : (
-              <div className="divide-y divide-gray-50">
-                {data.orders.map(order => (
-                  <div key={order.id} className="flex items-center gap-3 px-4 sm:px-6 py-4 flex-wrap sm:flex-nowrap">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-3 flex-wrap">
-                        <Link
-                          href={`/admin/orders/${order.id}`}
-                          className="font-bold text-navy text-lg hover:text-coral"
-                        >
-                          {order.order_number}
-                        </Link>
-                        <span className={`text-sm font-semibold px-3 py-0.5 rounded-full ${STATUS_COLOR[order.status] ?? 'bg-gray-100 text-gray-700'}`}>
-                          {STATUS_LABEL[order.status] ?? order.status}
-                        </span>
-                      </div>
-                      <div className="text-gray-500 text-sm mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                        <span>{order.shipping_first_name} {order.shipping_last_name}</span>
-                        {order.email && <span>· {order.email}</span>}
-                        <span>· {new Date(order.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
-                        {order.referral_source && (
-                          <span className="inline-block text-[10px] font-semibold bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">
-                            via {order.referral_source}
-                          </span>
-                        )}
-                      </div>
+        <ul className="flex flex-col gap-2.5 sm:gap-0 sm:bg-white sm:rounded-xl sm:border sm:border-border/80 sm:divide-y sm:divide-border/70 sm:overflow-hidden">
+          {data.orders.map(order => {
+            const next = NEXT_STATUS[order.status];
+            return (
+              <li
+                key={order.id}
+                className="bg-white rounded-xl border border-border/80 sm:rounded-none sm:border-0 flex flex-col sm:flex-row sm:items-center gap-3 p-4 sm:px-5 sm:py-3.5"
+              >
+                <Link href={`/admin/orders/${order.id}`} className="flex-1 min-w-0 flex items-start gap-3 group">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold text-navy text-[15px] group-hover:text-brand transition-colors">{order.order_number}</span>
+                      <StatusBadge status={order.status} />
                     </div>
-                    <div className="flex items-center gap-3 shrink-0">
-                      <div className="font-bold text-navy text-lg">
-                        £{parseFloat(order.total).toFixed(2)}
-                      </div>
-                      {NEXT_STATUS[order.status] && (
-                        <button
-                          onClick={() => advanceStatus(order.id, NEXT_STATUS[order.status])}
-                          disabled={updating === order.id}
-                          className="bg-coral text-white text-sm font-bold px-4 py-2 rounded-xl hover:bg-coral/90 active:scale-95 transition-all disabled:opacity-50 whitespace-nowrap"
-                        >
-                          {updating === order.id ? '…' : NEXT_LABEL[order.status]}
-                        </button>
-                      )}
-                      <Link
-                        href={`/admin/orders/${order.id}`}
-                        className="text-gray-400 text-xl hover:text-navy"
-                      >
-                        ›
-                      </Link>
+                    <div className="text-sm text-navy/80 mt-1 truncate">
+                      {order.shipping_first_name} {order.shipping_last_name}
+                    </div>
+                    <div className="text-xs text-text-secondary mt-0.5 flex flex-wrap gap-x-2">
+                      <span>{shortDate(order.created_at, true)}</span>
+                      {order.email && <span className="truncate max-w-[60vw] sm:max-w-none">{order.email}</span>}
+                      {order.referral_source && <span>via {order.referral_source}</span>}
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
+                  <span className="font-semibold text-navy tabular-nums sm:hidden">{gbp(order.total)}</span>
+                </Link>
 
-          {/* Pagination */}
-          {data && data.totalPages > 1 && (
-            <div className="flex items-center justify-center gap-3">
-              <button
-                disabled={page <= 1}
-                onClick={() => setPage(p => p - 1)}
-                className="px-5 py-3 rounded-2xl bg-white border border-gray-200 font-bold text-navy disabled:opacity-40 hover:border-navy transition-all"
-              >
-                ← Prev
-              </button>
-              <span className="font-semibold text-gray-600">
-                Page {page} of {data.totalPages}
-              </span>
-              <button
-                disabled={page >= data.totalPages}
-                onClick={() => setPage(p => p + 1)}
-                className="px-5 py-3 rounded-2xl bg-white border border-gray-200 font-bold text-navy disabled:opacity-40 hover:border-navy transition-all"
-              >
-                Next →
-              </button>
-            </div>
-          )}
-        </>
+                <div className="flex items-center gap-3 sm:shrink-0">
+                  <span className="hidden sm:block font-semibold text-navy tabular-nums w-20 text-right">{gbp(order.total)}</span>
+                  {next ? (
+                    <Btn
+                      size="sm"
+                      onClick={() => advanceStatus(order.id, next.to)}
+                      disabled={updating === order.id}
+                      className="flex-1 sm:flex-none h-10 sm:h-9 sm:w-36"
+                    >
+                      {updating === order.id ? 'Updating…' : next.label}
+                    </Btn>
+                  ) : (
+                    <span className="hidden sm:block sm:w-36" />
+                  )}
+                  <Link
+                    href={`/admin/orders/${order.id}`}
+                    aria-label={`Open ${order.order_number}`}
+                    className="w-10 h-10 shrink-0 rounded-lg border border-border sm:border-0 flex items-center justify-center text-text-secondary hover:text-navy hover:bg-cream"
+                  >
+                    <Icon name="chevron" className="w-4 h-4" />
+                  </Link>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
       )}
+
+      {data && <Pagination page={page} totalPages={data.totalPages} onPage={setPage} />}
     </div>
   );
 }

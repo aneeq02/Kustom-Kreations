@@ -106,7 +106,7 @@ export default function StartPage() {
           {[0, 1, 2].map(i => (
             <div
               key={i}
-              className="h-2 rounded-full transition-all duration-500 ease-out"
+              className="h-2 rounded-full transition-[width] duration-500 ease-out"
               style={{
                 width: i === currentStepIndex ? 32 : 8,
                 background: i <= currentStepIndex ? '#6E9481' : '#DCE7E0',
@@ -147,7 +147,7 @@ export default function StartPage() {
                 value={name}
                 onChange={e => { setName(e.target.value); setNameErr(''); }}
                 onKeyDown={e => e.key === 'Enter' && submitName()}
-                className="w-full px-5 py-4 rounded-2xl border-2 bg-white text-navy text-lg placeholder:text-border focus:outline-none transition-all duration-200"
+                className="w-full px-5 py-4 rounded-2xl border-2 bg-white text-navy text-lg placeholder:text-border focus:outline-none transition-colors duration-200"
                 style={{ borderColor: nameErr ? '#DC2626' : name ? '#6E9481' : '#D8D3C8' }}
               />
               {nameErr && (
@@ -160,7 +160,7 @@ export default function StartPage() {
               )}
               <button
                 onClick={submitName}
-                className="w-full mt-4 py-4 rounded-2xl font-bold text-white text-lg shadow-xl shadow-coral/20 transition-all hover:-translate-y-0.5 active:translate-y-0"
+                className="w-full mt-4 py-4 rounded-2xl font-bold text-white text-lg shadow-xl shadow-coral/20 transition-transform hover:-translate-y-0.5 active:translate-y-0"
                 style={{ background: 'linear-gradient(135deg, #6E9481 0%, #93B3A3 100%)' }}
               >
                 Continue →
@@ -195,7 +195,7 @@ export default function StartPage() {
                 value={email}
                 onChange={e => { setEmail(e.target.value); setEmailErr(''); }}
                 onKeyDown={e => e.key === 'Enter' && submitEmail()}
-                className="w-full px-5 py-4 rounded-2xl border-2 bg-white text-navy text-lg placeholder:text-border focus:outline-none transition-all duration-200"
+                className="w-full px-5 py-4 rounded-2xl border-2 bg-white text-navy text-lg placeholder:text-border focus:outline-none transition-colors duration-200"
                 style={{ borderColor: emailErr ? '#DC2626' : email ? '#6E9481' : '#D8D3C8' }}
               />
               {emailErr && (
@@ -208,7 +208,7 @@ export default function StartPage() {
               )}
               <button
                 onClick={submitEmail}
-                className="w-full mt-4 py-4 rounded-2xl font-bold text-white text-lg shadow-xl shadow-coral/20 transition-all hover:-translate-y-0.5 active:translate-y-0"
+                className="w-full mt-4 py-4 rounded-2xl font-bold text-white text-lg shadow-xl shadow-coral/20 transition-transform hover:-translate-y-0.5 active:translate-y-0"
                 style={{ background: 'linear-gradient(135deg, #6E9481 0%, #93B3A3 100%)' }}
               >
                 Continue →
@@ -250,7 +250,7 @@ export default function StartPage() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.04, duration: 0.2 }}
                     onClick={() => submitReferral(opt.id)}
-                    className="flex items-center px-4 py-3 rounded-xl text-left border-2 border-border bg-white hover:border-coral hover:bg-coral-light/40 hover:-translate-y-0.5 transition-all group"
+                    className="flex items-center px-4 py-3 rounded-xl text-left border-2 border-border bg-white hover:border-coral hover:bg-coral-light/40 hover:-translate-y-0.5 transition-[transform,border-color,background-color] group"
                   >
                     <span className="text-sm font-semibold text-navy group-hover:text-coral leading-tight">
                       {opt.label}

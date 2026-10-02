@@ -72,27 +72,32 @@ export default function NewOrderAlert() {
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: -16, scale: 0.95 }}
           transition={{ type: 'spring', damping: 22, stiffness: 300 }}
-          className="fixed top-4 right-4 z-[60] max-w-sm"
+          role="status"
+          className="fixed z-60 top-[4.25rem] inset-x-3 sm:inset-x-auto sm:right-5 sm:top-5 sm:w-[22rem]"
         >
-          <div className="bg-white rounded-3xl shadow-2xl border-2 border-coral p-5 flex items-start gap-3">
-            <span className="text-3xl">🎉</span>
-            <div className="flex-1">
-              <p className="font-heading font-bold text-navy text-base">
-                {newCount} new order{newCount > 1 ? 's' : ''}!
+          <div className="bg-white rounded-xl shadow-[0_16px_40px_-12px_rgba(26,26,24,0.3)] border border-brand/25 p-4 flex items-start gap-3">
+            <span className="w-10 h-10 rounded-full bg-brand-light text-brand flex items-center justify-center shrink-0">
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M6 16V11a6 6 0 0112 0v5l1.5 2h-15z" /><path d="M10 20a2 2 0 004 0" />
+              </svg>
+            </span>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-navy">
+                {newCount} new order{newCount > 1 ? 's' : ''}
               </p>
-              <p className="text-sm text-gray-500 mt-0.5 mb-3">
-                Check {newCount > 1 ? 'them' : 'it'} out before they pile up.
+              <p className="text-sm text-text-secondary mt-0.5 mb-3">
+                Take a look before {newCount > 1 ? 'they pile' : 'it piles'} up.
               </p>
               <div className="flex gap-2">
                 <button
                   onClick={viewOrders}
-                  className="bg-coral text-white text-sm font-bold px-4 py-2 rounded-xl hover:bg-coral/90 active:scale-95 transition-all"
+                  className="h-10 px-4 rounded-lg bg-brand text-white text-sm font-semibold hover:bg-brand-dark transition-colors cursor-pointer"
                 >
-                  Check it out →
+                  View orders
                 </button>
                 <button
                   onClick={dismiss}
-                  className="text-sm font-semibold text-gray-500 px-3 py-2 hover:text-navy transition-colors"
+                  className="h-10 px-3 rounded-lg text-sm font-medium text-text-secondary hover:text-navy hover:bg-cream transition-colors cursor-pointer"
                 >
                   Dismiss
                 </button>

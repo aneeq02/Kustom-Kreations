@@ -9,8 +9,11 @@ interface CartState {
   sessionId: string;
 }
 
+export type NewCartItem = Omit<CartItem, 'id'> & { id?: string };
+
 type CartAction =
-  | { type: 'ADD'; item: Omit<CartItem, 'id'> }
+  | { type: 'ADD'; item: CartItem }
+  | { type: 'UPDATE'; id: string; patch: Partial<CartItem> }
   | { type: 'REMOVE'; id: string }
   | { type: 'UPDATE_QTY'; id: string; quantity: number }
   | { type: 'CLEAR' }
@@ -19,7 +22,9 @@ type CartAction =
 function cartReducer(state: CartState, action: CartAction): CartState {
   switch (action.type) {
     case 'ADD':
-      return { ...state, items: [...state.items, { ...action.item, id: uuidv4() }] };
+      return { ...state, items: [...state.items, action.item] };
+    case 'UPDATE':
+      return { ...state, items: state.items.map(i => i.id === action.id ? { ...i, ...action.patch } : i) };
     case 'REMOVE':
       return { ...state, items: state.items.filter(i => i.id !== action.id) };
     case 'UPDATE_QTY':
@@ -36,11 +41,21 @@ function cartReducer(state: CartState, action: CartAction): CartState {
 interface CartContextValue {
   items: CartItem[];
   totalItems: number;
-  addItem: (item: Omit<CartItem, 'id'>) => void;
+  addItem: (item: NewCartItem) => string;
+  updateItem: (id: string, patch: Partial<CartItem>) => void;
   removeItem: (id: string) => void;
   updateQuantity: (id: string, quantity: number) => void;
   clearCart: () => void;
   sessionId: string;
+  hydrated: boolean;
+  // Photo uploads still in flight this session. Not persisted — after a
+  // reload an item with an empty imageKey is a failed upload, not a pending one.
+  uploadingIds: ReadonlySet<string>;
+  setUploading: (id: string, uploading: boolean) => void;
+  // Mixtiles-style slide-in bag, openable from anywhere (navbar, studio)
+  bagOpen: boolean;
+  openBag: () => void;
+  closeBag: () => void;
 }
 
 const CartContext = createContext<CartContextValue | null>(null);
@@ -51,6 +66,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     sessionId: '',
   });
   const [hydrated, setHydrated] = useState(false);
+  const [uploadingIds, setUploadingIds] = useState<ReadonlySet<string>>(new Set());
+  const [bagOpen, setBagOpen] = useState(false);
 
   // Load persisted cart only after mount, so the first client render matches
   // the server-rendered (always-empty) HTML and avoids a hydration mismatch.
@@ -66,22 +83,41 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!hydrated) return;
-    localStorage.setItem('kk_cart', JSON.stringify(state));
+    try {
+      localStorage.setItem('kk_cart', JSON.stringify(state));
+    } catch { /* quota exceeded — cart still works for this session */ }
   }, [state, hydrated]);
 
-  const addItem = useCallback((item: Omit<CartItem, 'id'>) => dispatch({ type: 'ADD', item }), []);
+  const addItem = useCallback((item: NewCartItem) => {
+    const id = item.id ?? uuidv4();
+    dispatch({ type: 'ADD', item: { ...item, id } });
+    return id;
+  }, []);
+  const updateItem = useCallback((id: string, patch: Partial<CartItem>) => dispatch({ type: 'UPDATE', id, patch }), []);
   const removeItem = useCallback((id: string) => dispatch({ type: 'REMOVE', id }), []);
   const updateQuantity = useCallback((id: string, quantity: number) => {
     dispatch({ type: 'UPDATE_QTY', id, quantity: Math.max(1, quantity) });
   }, []);
   const clearCart = useCallback(() => dispatch({ type: 'CLEAR' }), []);
+  const setUploading = useCallback((id: string, uploading: boolean) => {
+    setUploadingIds(prev => {
+      const next = new Set(prev);
+      if (uploading) next.add(id); else next.delete(id);
+      return next;
+    });
+  }, []);
+  const openBag = useCallback(() => setBagOpen(true), []);
+  const closeBag = useCallback(() => setBagOpen(false), []);
 
   return (
     <CartContext.Provider value={{
       items: state.items,
       totalItems: state.items.reduce((s, i) => s + i.quantity, 0),
-      addItem, removeItem, updateQuantity, clearCart,
+      addItem, updateItem, removeItem, updateQuantity, clearCart,
       sessionId: state.sessionId,
+      hydrated,
+      uploadingIds, setUploading,
+      bagOpen, openBag, closeBag,
     }}>
       {children}
     </CartContext.Provider>

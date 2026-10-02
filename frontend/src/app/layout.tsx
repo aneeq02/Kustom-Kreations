@@ -1,14 +1,15 @@
 import type { Metadata } from 'next';
-import { Fraunces, DM_Sans } from 'next/font/google';
+import { Cormorant_Garamond, DM_Sans } from 'next/font/google';
 import './globals.css';
 import SiteShell from '@/components/layout/SiteShell';
 import { CartProvider } from '@/context/CartContext';
 import { AuthProvider } from '@/context/AuthContext';
 
-const fraunces = Fraunces({
-  variable: '--font-fraunces',
+const cormorant = Cormorant_Garamond({
+  variable: '--font-cormorant',
   subsets: ['latin'],
-  axes: ['opsz', 'SOFT', 'WONK'],
+  weight: ['300', '400', '600', '700'],
+  style: ['normal', 'italic'],
   display: 'swap',
 });
 
@@ -35,7 +36,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en-GB" className={`${fraunces.variable} ${dmSans.variable} h-full`}>
+    <html lang="en-GB" className={`${cormorant.variable} ${dmSans.variable} h-full`}>
       <body className="min-h-full flex flex-col bg-cream text-navy antialiased">
         <AuthProvider>
           <CartProvider>

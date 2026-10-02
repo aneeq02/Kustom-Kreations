@@ -1,7 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { adminGet, adminPatch } from '@/lib/adminApi';
+import { gbp } from '@/lib/adminStatus';
+import { AffixInput, Alert, Btn, Field, Icon, PageHeader, Toggle } from '@/components/admin/ui';
+import MagnetPreview from '@/components/studio/MagnetPreview';
 
 interface MagnetSize {
   id: string; label: string; size_mm: number; price: string; active: boolean;
@@ -12,21 +15,25 @@ interface TileLayout {
   active: boolean; bulk_discount_pct: number; bulk_discount_qty: number | null;
 }
 
-function SizeCard({ size, onSave }: { size: MagnetSize; onSave: () => void }) {
-  const [price, setPrice]     = useState(parseFloat(size.price).toFixed(2));
-  const [active, setActive]   = useState(size.active);
-  const [saving, setSaving]   = useState(false);
-  const [saved, setSaved]     = useState(false);
-  const [error, setError]     = useState('');
+function useSaveFlag() {
+  const [saved, setSaved] = useState(false);
+  const flash = () => { setSaved(true); setTimeout(() => setSaved(false), 2000); };
+  return [saved, flash] as const;
+}
 
-  const save = async (overrideActive?: boolean) => {
-    const activeValue = overrideActive !== undefined ? overrideActive : active;
+function SizeCard({ size, onSave }: { size: MagnetSize; onSave: () => void }) {
+  const [price, setPrice]   = useState(parseFloat(size.price).toFixed(2));
+  const [active, setActive] = useState(size.active);
+  const [saving, setSaving] = useState(false);
+  const [saved, flash]      = useSaveFlag();
+  const [error, setError]   = useState('');
+
+  const save = async (activeValue = active) => {
     setSaving(true);
     setError('');
     try {
       await adminPatch(`/products/sizes/${size.id}`, { price: parseFloat(price), active: activeValue });
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
+      flash();
       onSave();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to save');
@@ -35,69 +42,55 @@ function SizeCard({ size, onSave }: { size: MagnetSize; onSave: () => void }) {
     }
   };
 
-  const handleToggle = () => {
-    const next = !active;
-    setActive(next);
-    save(next);
-  };
+  const dirty = price !== parseFloat(size.price).toFixed(2);
 
   return (
-    <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6">
-      <div className="flex items-center justify-between mb-4">
+    <div className={`bg-white rounded-xl border p-4 sm:p-5 flex flex-col gap-4 transition-opacity ${active ? 'border-border/80' : 'border-dashed border-border opacity-75'}`}>
+      <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="text-3xl font-heading font-bold text-navy">{size.label}</div>
-          <div className="text-gray-500">{size.size_mm}mm magnet</div>
+          <p className="font-heading text-3xl text-navy leading-none">{size.label}</p>
+          <p className="text-sm text-text-secondary mt-1.5">{active ? 'Offered in the shop' : 'Hidden from customers'}</p>
         </div>
-        <button
-          onClick={handleToggle}
+        <Toggle
+          checked={active}
+          label={`Offer ${size.label} magnets`}
           disabled={saving}
-          className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors disabled:opacity-60 ${active ? 'bg-green-500' : 'bg-gray-300'}`}
-        >
-          <span className={`inline-block h-6 w-6 transform rounded-full bg-white shadow-sm transition-transform ${active ? 'translate-x-7' : 'translate-x-1'}`} />
-        </button>
+          onChange={() => { const next = !active; setActive(next); save(next); }}
+        />
       </div>
-      <div>
-        <label className="block font-bold text-navy mb-2">Price (£)</label>
-        <div className="flex gap-3">
-          <div className="relative flex-1">
-            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold">£</span>
-            <input
+      <Field label="Price per magnet" htmlFor={`price-${size.id}`}>
+        <div className="flex gap-2">
+          <div className="flex-1">
+            <AffixInput
+              id={`price-${size.id}`}
+              prefix="£"
               type="number"
+              inputMode="decimal"
               step="0.01"
               min="0"
               value={price}
               onChange={e => setPrice(e.target.value)}
-              className="w-full border border-gray-200 rounded-2xl pl-8 pr-4 py-3 text-base font-bold focus:outline-none focus:border-coral"
             />
           </div>
-          <button
-            onClick={() => save()}
-            disabled={saving}
-            className={`px-5 py-3 rounded-2xl font-bold transition-all ${saved ? 'bg-green-500 text-white' : 'bg-coral text-white hover:bg-coral/90 active:scale-95'} disabled:opacity-50`}
-          >
-            {saving ? '…' : saved ? '✅' : '💾 Save'}
-          </button>
+          <Btn onClick={() => save()} disabled={saving || (!dirty && !saved)} className="w-24">
+            {saving ? '…' : saved ? <Icon name="check" className="w-5 h-5" /> : 'Save'}
+          </Btn>
         </div>
-        {error && <div className="mt-2 text-red-600 text-sm font-semibold">⚠️ {error}</div>}
-      </div>
+      </Field>
+      {error && <Alert>{error}</Alert>}
     </div>
   );
 }
 
-const GRID_ICON: Record<string, string> = {
-  '1x1': '⬜', '2x2': '⊞', '3x3': '⊟', '4x4': '⊠', '5x5': '⊡',
-};
-
-function LayoutCard({ layout, onSave }: { layout: TileLayout; onSave: () => void }) {
+function LayoutCard({ layout, pricePerMagnet, onSave }: { layout: TileLayout; pricePerMagnet: number | null; onSave: () => void }) {
   const [active, setActive]     = useState(layout.active);
   const [discount, setDiscount] = useState(layout.bulk_discount_pct.toString());
   const [bulkQty, setBulkQty]   = useState(layout.bulk_discount_qty?.toString() ?? '');
   const [saving, setSaving]     = useState(false);
-  const [saved, setSaved]       = useState(false);
+  const [saved, flash]          = useSaveFlag();
   const [error, setError]       = useState('');
 
-  const save = async (overrideActive?: boolean) => {
-    const activeValue = overrideActive !== undefined ? overrideActive : active;
+  const save = async (activeValue = active) => {
     setSaving(true);
     setError('');
     try {
@@ -107,8 +100,7 @@ function LayoutCard({ layout, onSave }: { layout: TileLayout; onSave: () => void
         bulkDiscountPct: parseFloat(discount) || 0,
         bulkDiscountQty: Number.isFinite(qty) && qty > 0 ? qty : null,
       });
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
+      flash();
       onSave();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to save');
@@ -117,72 +109,65 @@ function LayoutCard({ layout, onSave }: { layout: TileLayout; onSave: () => void
     }
   };
 
-  const handleToggle = () => {
-    const next = !active;
-    setActive(next);
-    save(next);
-  };
+  const count = layout.rows * layout.cols;
+  const dirty = discount !== layout.bulk_discount_pct.toString() || bulkQty !== (layout.bulk_discount_qty?.toString() ?? '');
 
   return (
-    <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-5">
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-3">
-          <span className="text-3xl">{GRID_ICON[layout.slug] ?? '🔲'}</span>
-          <div>
-            <div className="font-bold text-navy text-lg">{layout.label}</div>
-            <div className="text-gray-500 text-sm">{layout.rows}×{layout.cols} grid</div>
-          </div>
+    <div className={`bg-white rounded-xl border p-4 sm:p-5 flex flex-col gap-4 transition-opacity ${active ? 'border-border/80' : 'border-dashed border-border opacity-75'}`}>
+      <div className="flex items-start gap-3.5">
+        <MagnetPreview thumbUrl={null} rows={layout.rows} cols={layout.cols} size={48} className="shrink-0 mt-0.5" />
+        <div className="flex-1 min-w-0">
+          <p className="font-semibold text-navy">{count === 1 ? 'Single magnet' : layout.label}</p>
+          <p className="text-sm text-text-secondary">
+            {count} magnet{count > 1 ? 's' : ''}
+            {pricePerMagnet !== null && <> · {gbp(pricePerMagnet * count)} at 50mm</>}
+          </p>
         </div>
-        <button
-          onClick={handleToggle}
+        <Toggle
+          checked={active}
+          label={`Offer ${layout.label}`}
           disabled={saving}
-          className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors disabled:opacity-60 ${active ? 'bg-green-500' : 'bg-gray-300'}`}
-        >
-          <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform ${active ? 'translate-x-6' : 'translate-x-1'}`} />
-        </button>
+          onChange={() => { const next = !active; setActive(next); save(next); }}
+        />
       </div>
-      <div className="flex gap-3 items-end">
-        <div className="flex-1">
-          <label className="block font-bold text-navy text-sm mb-1">Bulk Discount Qty</label>
+
+      <div className="grid grid-cols-2 gap-2.5">
+        <Field label="Bulk from (qty)" htmlFor={`qty-${layout.id}`}>
           <input
+            id={`qty-${layout.id}`}
             type="number"
+            inputMode="numeric"
             step="1"
             min="0"
-            placeholder="e.g. 8"
+            placeholder="Off"
             value={bulkQty}
             onChange={e => setBulkQty(e.target.value)}
-            className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:border-coral"
+            className="w-full h-11 px-3.5 rounded-lg border border-border bg-white text-navy text-base focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15"
           />
-        </div>
-        <div className="flex-1">
-          <label className="block font-bold text-navy text-sm mb-1">Discount %</label>
-          <div className="relative">
-            <input
-              type="number"
-              step="1"
-              min="0"
-              max="100"
-              value={discount}
-              onChange={e => setDiscount(e.target.value)}
-              className="w-full border border-gray-200 rounded-xl pl-3 pr-8 py-2.5 text-base focus:outline-none focus:border-coral"
-            />
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 font-bold">%</span>
-          </div>
-        </div>
-        <button
-          onClick={() => save()}
-          disabled={saving}
-          className={`px-4 py-2.5 rounded-xl font-bold text-sm transition-all ${saved ? 'bg-green-500 text-white' : 'bg-coral text-white hover:bg-coral/90'} disabled:opacity-50`}
-        >
-          {saving ? '…' : saved ? '✅' : '💾'}
-        </button>
+        </Field>
+        <Field label="Discount" htmlFor={`pct-${layout.id}`}>
+          <AffixInput
+            id={`pct-${layout.id}`}
+            suffix="%"
+            type="number"
+            inputMode="decimal"
+            step="1"
+            min="0"
+            max="100"
+            value={discount}
+            onChange={e => setDiscount(e.target.value)}
+          />
+        </Field>
       </div>
-      <p className="mt-2 text-xs text-gray-400">
-        Customers who add this many {layout.label} products to their order get the discount % off. Leave quantity blank to turn off.
+      <p className="text-xs text-text-secondary -mt-1.5">
+        {bulkQty && Number(bulkQty) > 0
+          ? `Orders with ${bulkQty}+ of these get ${discount || 0}% off them.`
+          : 'Leave the quantity empty to turn the bulk discount off.'}
       </p>
-      {error && (
-        <div className="mt-2 text-red-600 text-xs font-semibold">⚠️ {error}</div>
-      )}
+      {error && <Alert>{error}</Alert>}
+      <Btn variant={dirty ? 'primary' : 'secondary'} onClick={() => save()} disabled={saving || (!dirty && !saved)} className="w-full">
+        {saving ? 'Saving…' : saved ? <><Icon name="check" className="w-4 h-4" /> Saved</> : 'Save discount'}
+      </Btn>
     </div>
   );
 }
@@ -193,8 +178,7 @@ export default function AdminProductsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState('');
 
-  const load = async () => {
-    setLoading(true);
+  const load = useCallback(async () => {
     try {
       const [s, l] = await Promise.all([
         adminGet<MagnetSize[]>('/products/sizes'),
@@ -207,40 +191,41 @@ export default function AdminProductsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
-  if (loading) return <div className="text-center py-16 text-4xl animate-pulse">🧲</div>;
+  const base = sizes.find(s => s.size_mm === 50) ?? sizes[0];
+  const basePrice = base ? parseFloat(base.price) : null;
+  const visibleLayouts = layouts.filter(l => l.slug !== 'custom' && l.rows > 0);
 
   return (
-    <div className="flex flex-col gap-8">
-      <div>
-        <h1 className="text-4xl font-heading font-bold text-navy">🧲 Products</h1>
-        <p className="text-gray-500 mt-1 text-lg">Set prices and choose which sizes and layouts to offer.</p>
-      </div>
+    <div className="flex flex-col gap-7 sm:gap-9">
+      <PageHeader title="Products" subtitle="Set prices and choose which sizes and layouts customers can order." />
 
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded-2xl p-4">
-          ⚠️ {error}
-        </div>
-      )}
+      {error && <Alert>{error}</Alert>}
 
-      {/* Sizes */}
-      <div>
-        <h2 className="text-2xl font-heading font-bold text-navy mb-4">📏 Magnet Sizes</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {sizes.map(s => <SizeCard key={s.id} size={s} onSave={load} />)}
-        </div>
-      </div>
+      <section className="flex flex-col gap-3">
+        <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">Magnet sizes</h2>
+        {loading ? (
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">{[0, 1].map(i => <div key={i} className="h-44 rounded-xl bg-white border border-border/70 animate-pulse" />)}</div>
+        ) : (
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+            {sizes.map(s => <SizeCard key={s.id} size={s} onSave={load} />)}
+          </div>
+        )}
+      </section>
 
-      {/* Layouts */}
-      <div>
-        <h2 className="text-2xl font-heading font-bold text-navy mb-4">🔲 Grid Layouts</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {layouts.map(l => <LayoutCard key={l.id} layout={l} onSave={load} />)}
-        </div>
-      </div>
+      <section className="flex flex-col gap-3">
+        <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">Layouts &amp; bulk discounts</h2>
+        {loading ? (
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">{[0, 1, 2].map(i => <div key={i} className="h-60 rounded-xl bg-white border border-border/70 animate-pulse" />)}</div>
+        ) : (
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+            {visibleLayouts.map(l => <LayoutCard key={l.id} layout={l} pricePerMagnet={basePrice} onSave={load} />)}
+          </div>
+        )}
+      </section>
     </div>
   );
 }

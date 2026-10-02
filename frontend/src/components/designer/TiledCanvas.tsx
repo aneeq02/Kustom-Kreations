@@ -77,7 +77,7 @@ const TiledCanvas = forwardRef<TiledCanvasHandle, Props>(function TiledCanvas(
 
   return (
     <div
-      className="relative rounded-[18px] overflow-hidden shadow-2xl border-4 border-white/10"
+      className="relative rounded-[2px] overflow-hidden bg-white"
       style={{ width: canvasSize, height: canvasSize }}
     >
       <Stage ref={stageRef} width={canvasSize} height={canvasSize} onWheel={handleWheel}>
@@ -142,7 +142,7 @@ const TiledCanvas = forwardRef<TiledCanvasHandle, Props>(function TiledCanvas(
       {!photoImg && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-ivory/80 pointer-events-none">
           <svg
-            className="w-12 h-12 text-coral/30 mb-3"
+            className="w-12 h-12 text-navy/25 mb-3"
             viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"
           >
             <rect x="3" y="3" width="18" height="18" rx="2"/>

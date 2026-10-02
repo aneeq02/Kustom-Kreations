@@ -83,18 +83,18 @@ export default function PackingSlipPage({ params }: { params: Promise<{ id: stri
   return (
     <>
       {/* Print button — hidden when actually printing */}
-      <div className="print:hidden fixed top-4 right-4 z-50 flex gap-2">
+      <div className="print:hidden fixed top-3 inset-x-3 sm:inset-x-auto sm:right-4 sm:top-4 z-50 flex gap-2">
         <a
           href={`/admin/orders/${id}`}
-          className="bg-gray-100 text-gray-700 font-bold px-4 py-2 rounded-xl hover:bg-gray-200 text-sm"
+          className="flex-1 sm:flex-none inline-flex items-center justify-center h-11 px-4 rounded-lg bg-white border border-gray-200 text-gray-800 font-semibold text-sm hover:border-gray-400 shadow-sm"
         >
-          ← Back
+          ← Back to order
         </a>
         <button
           onClick={() => window.print()}
-          className="bg-navy text-white font-bold px-6 py-2 rounded-xl hover:bg-navy/90 text-sm"
+          className="flex-1 sm:flex-none inline-flex items-center justify-center h-11 px-6 rounded-lg bg-[#006E71] text-white font-semibold text-sm hover:bg-[#00565A] shadow-sm cursor-pointer"
         >
-          🖨️ Print
+          Print
         </button>
       </div>
 
@@ -106,7 +106,7 @@ export default function PackingSlipPage({ params }: { params: Promise<{ id: stri
         }
       `}</style>
 
-      <div className="min-h-screen bg-white p-6 print:p-0 font-sans">
+      <div className="min-h-screen bg-white p-4 pt-20 sm:p-6 sm:pt-20 print:p-0 font-sans">
 
         {/* ══════════════════════ PACKING SLIP ══════════════════════ */}
         <div className="max-w-[210mm] mx-auto">

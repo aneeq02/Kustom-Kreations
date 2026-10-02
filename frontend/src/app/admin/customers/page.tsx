@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { adminGet } from '@/lib/adminApi';
+import { gbp, shortDate } from '@/lib/adminStatus';
+import { EmptyState, PageHeader, Pagination, SearchBox, SkeletonRows } from '@/components/admin/ui';
 
 interface Customer {
   id: string; first_name: string; last_name: string;
@@ -20,117 +22,70 @@ export default function AdminCustomersPage() {
   const [data, setData]       = useState<CustomersResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch]   = useState('');
+  const [query, setQuery]     = useState('');
   const [page, setPage]       = useState(1);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams({ page: page.toString(), limit: '25' });
-      if (search) params.set('search', search);
-      const res = await adminGet<CustomersResponse>(`/customers?${params}`);
-      setData(res);
+      if (query) params.set('search', query);
+      setData(await adminGet<CustomersResponse>(`/customers?${params}`));
     } finally {
       setLoading(false);
     }
-  }, [page, search]);
+  }, [page, query]);
 
   useEffect(() => { load(); }, [load]);
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    setPage(1);
-    load();
-  };
-
   return (
-    <div className="flex flex-col gap-6">
-      <h1 className="text-4xl font-heading font-bold text-navy">👥 Customers</h1>
+    <div className="flex flex-col gap-5">
+      <PageHeader
+        title="Customers"
+        subtitle={data ? `${data.total} registered customer${data.total !== 1 ? 's' : ''}` : 'Registered accounts'}
+      />
 
-      <form onSubmit={handleSearch} className="flex gap-2">
-        <input
-          type="search"
-          placeholder="Search by name or email"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          className="flex-1 border border-gray-200 rounded-2xl px-4 py-3 text-base focus:outline-none focus:border-coral"
-        />
-        <button type="submit" className="bg-coral text-white px-5 py-3 rounded-2xl font-bold hover:bg-coral/90">
-          🔍
-        </button>
-      </form>
-
-      {data && (
-        <p className="text-gray-500 font-medium">
-          {data.total} customer{data.total !== 1 ? 's' : ''}
-        </p>
-      )}
+      <SearchBox
+        value={search}
+        onChange={setSearch}
+        onSubmit={() => { setPage(1); setQuery(search.trim()); }}
+        placeholder="Search name or email"
+      />
 
       {loading ? (
-        <div className="text-center py-16 text-4xl animate-pulse">👥</div>
+        <SkeletonRows rows={6} />
+      ) : !data?.customers.length ? (
+        <div className="bg-white rounded-xl border border-border/80">
+          <EmptyState icon="customers" title="No customers found" body={query ? 'Try a different search.' : 'Customers who create an account will appear here.'} />
+        </div>
       ) : (
-        <>
-          <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
-            {!data?.customers.length ? (
-              <div className="py-16 text-center text-gray-400 text-xl">
-                No customers found 🕐
-              </div>
-            ) : (
-              <div className="divide-y divide-gray-50">
-                {data.customers.map(c => (
-                  <div key={c.id} className="flex items-center gap-4 px-5 py-4">
-                    {/* Avatar */}
-                    <div className="w-12 h-12 rounded-full bg-navy/10 flex items-center justify-center text-xl font-bold text-navy shrink-0 uppercase">
-                      {c.first_name?.[0] ?? '?'}{c.last_name?.[0] ?? ''}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-bold text-navy text-lg">
-                        {c.first_name} {c.last_name}
-                      </div>
-                      <div className="text-gray-500 text-sm">
-                        {c.email}
-                        {c.phone && ` · ${c.phone}`}
-                      </div>
-                      <div className="text-gray-400 text-xs mt-0.5">
-                        Joined {new Date(c.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
-                      </div>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <div className="font-bold text-navy text-lg">
-                        £{parseFloat(c.total_spent).toFixed(2)}
-                      </div>
-                      <div className="text-gray-500 text-sm">
-                        {c.order_count} order{Number(c.order_count) !== 1 ? 's' : ''}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {data && data.totalPages > 1 && (
-            <div className="flex items-center justify-center gap-3">
-              <button
-                disabled={page <= 1}
-                onClick={() => setPage(p => p - 1)}
-                className="px-5 py-3 rounded-2xl bg-white border border-gray-200 font-bold text-navy disabled:opacity-40 hover:border-navy transition-all"
-              >
-                ← Prev
-              </button>
-              <span className="font-semibold text-gray-600">
-                Page {page} of {data.totalPages}
-              </span>
-              <button
-                disabled={page >= data.totalPages}
-                onClick={() => setPage(p => p + 1)}
-                className="px-5 py-3 rounded-2xl bg-white border border-gray-200 font-bold text-navy disabled:opacity-40 hover:border-navy transition-all"
-              >
-                Next →
-              </button>
-            </div>
-          )}
-        </>
+        <ul className="bg-white rounded-xl border border-border/80 divide-y divide-border/70 overflow-hidden">
+          {data.customers.map(c => {
+            const orders = Number(c.order_count);
+            return (
+              <li key={c.id} className="flex items-center gap-3 sm:gap-4 px-4 sm:px-5 py-3.5">
+                <span className="w-11 h-11 rounded-full bg-brand-light text-brand flex items-center justify-center font-semibold uppercase shrink-0">
+                  {c.first_name?.[0] ?? '?'}{c.last_name?.[0] ?? ''}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-navy truncate">{c.first_name} {c.last_name}</p>
+                  <a href={`mailto:${c.email}`} className="block text-sm text-navy/70 truncate hover:text-brand">{c.email}</a>
+                  <p className="text-xs text-text-secondary mt-0.5">
+                    Joined {shortDate(c.created_at, true)}
+                    {c.phone && <> · <a href={`tel:${c.phone}`} className="hover:text-navy">{c.phone}</a></>}
+                  </p>
+                </div>
+                <div className="text-right shrink-0">
+                  <p className="font-semibold text-navy tabular-nums">{gbp(c.total_spent)}</p>
+                  <p className="text-xs text-text-secondary">{orders} order{orders !== 1 ? 's' : ''}</p>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
       )}
+
+      {data && <Pagination page={page} totalPages={data.totalPages} onPage={setPage} />}
     </div>
   );
 }

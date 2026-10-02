@@ -42,6 +42,11 @@ export interface CartItem {
   imageQuality: 'good' | 'warn' | 'blocked';
   imageDpi: number;
   tileConfig?: TileConfig;  // present for tiled multi-magnet sets
+  // Studio editing metadata — lets an item be re-opened and re-cropped from
+  // the bag or after a reload. Optional so older saved carts still load.
+  sourceUrl?: string;       // server URL of the uploaded original
+  naturalW?: number;
+  naturalH?: number;
 }
 
 export interface CropData {

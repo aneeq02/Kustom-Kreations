@@ -15,7 +15,7 @@ const colors = {
 export function Badge({ color = 'coral', children, className = '', ...props }: BadgeProps) {
   return (
     <span
-      className={['inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold', colors[color], className].join(' ')}
+      className={['inline-flex items-center gap-1 px-2.5 py-1 rounded-[4px] text-xs font-medium', colors[color], className].join(' ')}
       {...props}
     >
       {children}
