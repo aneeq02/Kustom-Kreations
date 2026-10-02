@@ -23,3 +23,14 @@ logs/
 Thumbs.db
 .idea/
 .vscode/
+
+# AI coding-assistant files (Claude Code etc.) — local tooling, not project code
+CLAUDE.md
+AGENTS.md
+CLAUDE.local.md
+.claude/
+.mcp.json
+
+# Test coverage / scratch output
+coverage/
+tmp/

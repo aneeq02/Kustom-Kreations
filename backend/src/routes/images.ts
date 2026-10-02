@@ -59,6 +59,7 @@ router.post('/upload', upload.single('photo'), async (req: Request, res: Respons
 
   res.json({
     imageKey,
+    imageUrl: getFileUrl(imageKey),
     thumbKey,
     thumbUrl: getFileUrl(thumbKey),
     quality: quality.status,

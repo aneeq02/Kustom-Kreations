@@ -20,6 +20,13 @@ function resolveLayoutSlug(productId: string): string {
   return m ? m[1] : '1x1';
 }
 
+// Number of physical magnets in one product: '3x3' -> 9, '1x1' -> 1.
+// Prices are stored per magnet, so a tiled set costs per-magnet price x this.
+function tilesPerProduct(productId: string): number {
+  const [r, c] = resolveLayoutSlug(productId).split('x').map(n => parseInt(n, 10));
+  return (r > 0 && c > 0) ? r * c : 1;
+}
+
 async function loadLayoutDiscounts(): Promise<Map<string, { qty: number | null; pct: number }>> {
   const res = await pool.query('SELECT slug, bulk_discount_qty, bulk_discount_pct FROM tile_layouts');
   const map = new Map<string, { qty: number | null; pct: number }>();
@@ -113,7 +120,7 @@ router.post('/place-order', optionalAuth, async (req: AuthRequest, res: Response
       if (!sizeResult.rows[0]) {
         return res.status(400).json({ error: `${sizeMm}mm magnets are not currently available` });
       }
-      unitPrice = parseFloat(sizeResult.rows[0].price_per_magnet);
+      unitPrice = parseFloat(sizeResult.rows[0].price_per_magnet) * tilesPerProduct(item.productId);
 
       // Find the matching product record for the FK (strip layout suffix from slug)
       const baseSlug = (item.productId as string).replace(/-\d+x\d+$/, '');
@@ -313,7 +320,7 @@ async function computeCart(body: {
         'SELECT * FROM magnet_sizes WHERE size_mm = $1 AND active = TRUE', [sizeMm],
       );
       if (!sizeResult.rows[0]) throw new Error(`${sizeMm}mm magnets are not available`);
-      unitPrice = parseFloat(sizeResult.rows[0].price_per_magnet);
+      unitPrice = parseFloat(sizeResult.rows[0].price_per_magnet) * tilesPerProduct(item.productId);
       const baseSlug = (item.productId as string).replace(/-\d+x\d+$/, '');
       const pResult = await pool.query('SELECT id FROM products WHERE slug = $1', [baseSlug]);
       resolvedProductId = pResult.rows[0]?.id ?? null;
