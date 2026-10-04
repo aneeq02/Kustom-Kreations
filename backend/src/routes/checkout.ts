@@ -4,6 +4,7 @@ import { optionalAuth, AuthRequest } from '../middleware/auth';
 import { generateOrderNumber } from '../utils/orderNumber';
 import { sendOrderConfirmation } from '../services/email';
 import { createPayPalOrder, capturePayPalOrder } from '../services/paypal';
+import { priceOrder } from '../services/pricing';
 
 const router = Router();
 
@@ -56,17 +57,6 @@ function computeLayoutDiscountPcts(
     if (!cfg?.qty) return 0;
     return (groupQty.get(slug) ?? 0) >= cfg.qty ? cfg.pct : 0;
   });
-}
-
-// Charm pricing for the final order total: round down to the nearest 50p
-// strictly below the raw amount, e.g. 18.74 -> 18.50, 20.00 -> 19.50.
-// Only applied to the bottom-line total — line items stay exact. Must match
-// frontend's roundToCharmPrice exactly, since this is the amount actually
-// charged via PayPal.
-function roundToCharmPrice(amount: number): number {
-  const pence = Math.round(amount * 100);
-  const flooredPence = Math.max(0, Math.floor((pence - 1) / 50) * 50);
-  return flooredPence / 100;
 }
 
 /**
@@ -161,41 +151,17 @@ router.post('/place-order', optionalAuth, async (req: AuthRequest, res: Response
     });
   }
 
-  // Apply discount code
-  let computedDiscountAmount = 0;
-  let isFreeShipping = false;
-  if (discountCodeId) {
-    const dc = await pool.query('SELECT * FROM discount_codes WHERE id=$1 AND active=TRUE', [discountCodeId]);
-    if (dc.rows[0]) {
-      const d = dc.rows[0];
-      if (d.type === 'percent') computedDiscountAmount = (computedSubtotal * parseFloat(d.value)) / 100;
-      else if (d.type === 'fixed_gbp') computedDiscountAmount = Math.min(parseFloat(d.value), computedSubtotal);
-      else if (d.type === 'free_shipping') isFreeShipping = true;
-    }
+  // Promo, voucher, delivery and the £1 minimum — shared with the PayPal routes
+  let priced;
+  try {
+    priced = await priceOrder({ subtotal: computedSubtotal, discountCodeId, voucherId, shippingMethodId });
+  } catch (e: any) {
+    return res.status(400).json({ error: e.message });
   }
-
-  // Apply voucher
-  let computedVoucherAmount = 0;
-  if (voucherId) {
-    const v = await pool.query('SELECT * FROM gift_vouchers WHERE id=$1 AND active=TRUE', [voucherId]);
-    if (v.rows[0]) {
-      const bal = parseFloat(v.rows[0].remaining_balance_gbp ?? 0);
-      computedVoucherAmount = Math.min(bal, computedSubtotal - computedDiscountAmount);
-    }
-  }
-
-  // Shipping
-  let computedShippingAmount = 0;
-  if (shippingMethodId && !isFreeShipping) {
-    const sm = await pool.query('SELECT * FROM shipping_methods WHERE id=$1', [shippingMethodId]);
-    if (sm.rows[0]) {
-      const price = sm.rows[0].price_gbp;
-      const freeFrom = sm.rows[0].free_from_gbp;
-      computedShippingAmount = freeFrom && computedSubtotal >= parseFloat(freeFrom) ? 0 : parseFloat(price);
-    }
-  }
-
-  const computedTotal = roundToCharmPrice(Math.max(0, computedSubtotal - computedDiscountAmount - computedVoucherAmount + computedShippingAmount));
+  const computedDiscountAmount = priced.discount;
+  const computedVoucherAmount = priced.voucher;
+  const computedShippingAmount = priced.shipping;
+  const computedTotal = priced.total;
   const orderNumber = await generateOrderNumber();
 
   const email = guestEmail
@@ -357,38 +323,14 @@ async function computeCart(body: {
     });
   }
 
-  let computedDiscountAmount = 0;
-  let isFreeShipping = false;
-  if (discountCodeId) {
-    const dc = await pool.query('SELECT * FROM discount_codes WHERE id=$1 AND active=TRUE', [discountCodeId]);
-    if (dc.rows[0]) {
-      const d = dc.rows[0];
-      if (d.type === 'percent') computedDiscountAmount = (computedSubtotal * parseFloat(d.value)) / 100;
-      else if (d.type === 'fixed_gbp') computedDiscountAmount = Math.min(parseFloat(d.value), computedSubtotal);
-      else if (d.type === 'free_shipping') isFreeShipping = true;
-    }
-  }
-
-  let computedVoucherAmount = 0;
-  if (voucherId) {
-    const v = await pool.query('SELECT * FROM gift_vouchers WHERE id=$1 AND active=TRUE', [voucherId]);
-    if (v.rows[0]) {
-      const bal = parseFloat(v.rows[0].remaining_balance_gbp ?? 0);
-      computedVoucherAmount = Math.min(bal, computedSubtotal - computedDiscountAmount);
-    }
-  }
-
-  let computedShippingAmount = 0;
-  if (shippingMethodId && !isFreeShipping) {
-    const sm = await pool.query('SELECT * FROM shipping_methods WHERE id=$1', [shippingMethodId]);
-    if (sm.rows[0]) {
-      const price    = sm.rows[0].price_gbp;
-      const freeFrom = sm.rows[0].free_from_gbp;
-      computedShippingAmount = freeFrom && computedSubtotal >= parseFloat(freeFrom) ? 0 : parseFloat(price);
-    }
-  }
-
-  const computedTotal = roundToCharmPrice(Math.max(0, computedSubtotal - computedDiscountAmount - computedVoucherAmount + computedShippingAmount));
+  // Promo, voucher, delivery and the £1 minimum — throws a customer-friendly
+  // message (surfaced by the routes) if a code/method is no longer valid
+  const priced = await priceOrder({ subtotal: computedSubtotal, discountCodeId, voucherId, shippingMethodId });
+  const computedDiscountAmount = priced.discount;
+  const computedVoucherAmount = priced.voucher;
+  const computedShippingAmount = priced.shipping;
+  const computedTotal = priced.total;
+  const isFreeShipping = priced.isFreeShipping;
 
   return {
     enrichedItems,

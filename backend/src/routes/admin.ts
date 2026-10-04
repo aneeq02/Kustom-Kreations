@@ -368,17 +368,36 @@ const TYPE_MAP: Record<string, string> = {
   fixed_gbp:     'fixed_gbp',
 };
 
+// Codes that were used on an order can't be deleted (orders keep a reference
+// for their history), so they're archived instead: hidden from the admin,
+// switched off, and renamed so the code name can be reused. The column is
+// added on first use, so no manual migration is needed on the live database.
+let archiveColumnReady: Promise<unknown> | null = null;
+const ensureArchiveColumn = () =>
+  (archiveColumnReady ??= pool
+    .query('ALTER TABLE discount_codes ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ')
+    .catch(err => { archiveColumnReady = null; throw err; }));
+
+const DISCOUNT_COLUMNS = `
+  id, code, type, value,
+  min_order_gbp  AS min_order_amount,
+  max_uses,
+  uses_count     AS used_count,
+  active, valid_until AS expires_at, created_at`;
+
 router.get('/discounts', async (_req, res) => {
-  const result = await pool.query(
-    `SELECT
-       id, code, type, value,
-       min_order_gbp  AS min_order_amount,
-       max_uses,
-       uses_count     AS used_count,
-       active, valid_until AS expires_at, created_at
-     FROM discount_codes ORDER BY created_at DESC`,
-  );
-  res.json(result.rows);
+  try {
+    await ensureArchiveColumn();
+    const result = await pool.query(
+      `SELECT ${DISCOUNT_COLUMNS} FROM discount_codes
+       WHERE archived_at IS NULL
+       ORDER BY created_at DESC`,
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('[admin/discounts list]', err);
+    res.status(500).json({ error: 'Could not load discount codes' });
+  }
 });
 
 router.post('/discounts', async (req: Request, res: Response) => {
@@ -390,42 +409,72 @@ router.post('/discounts', async (req: Request, res: Response) => {
     return res.status(400).json({ error: 'Invalid discount type' });
   }
 
-  const result = await pool.query(
-    `INSERT INTO discount_codes
-       (code, type, value, min_order_gbp, max_uses, valid_until, active)
-     VALUES ($1,$2,$3,$4,$5,$6,TRUE)
-     RETURNING
-       id, code, type, value,
-       min_order_gbp AS min_order_amount,
-       max_uses, uses_count AS used_count,
-       active, valid_until AS expires_at, created_at`,
-    [
-      code.toUpperCase().trim(),
-      dbType,
-      value || null,
-      min_order_amount || null,
-      max_uses || null,
-      expires_at || null,
-    ],
-  );
-
-  res.status(201).json(result.rows[0]);
+  try {
+    const result = await pool.query(
+      `INSERT INTO discount_codes
+         (code, type, value, min_order_gbp, max_uses, valid_until, active)
+       VALUES ($1,$2,$3,$4,$5,$6,TRUE)
+       RETURNING ${DISCOUNT_COLUMNS}`,
+      [
+        code.toUpperCase().trim(),
+        dbType,
+        value || null,
+        min_order_amount || null,
+        max_uses || null,
+        expires_at || null,
+      ],
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err: any) {
+    if (err?.code === '23505') {
+      return res.status(409).json({ error: `A code called ${code.toUpperCase().trim()} already exists` });
+    }
+    console.error('[admin/discounts create]', err);
+    res.status(500).json({ error: 'Could not create the code' });
+  }
 });
 
 router.patch('/discounts/:id', async (req: Request, res: Response) => {
   const { active } = req.body;
-  const result = await pool.query(
-    `UPDATE discount_codes SET active = $2 WHERE id = $1
-     RETURNING id, code, type, value, min_order_gbp AS min_order_amount,
-               max_uses, uses_count AS used_count, active, valid_until AS expires_at, created_at`,
-    [req.params.id, active],
-  );
-  res.json(result.rows[0]);
+  try {
+    const result = await pool.query(
+      `UPDATE discount_codes SET active = $2 WHERE id = $1 RETURNING ${DISCOUNT_COLUMNS}`,
+      [req.params.id, active],
+    );
+    if (!result.rows[0]) return res.status(404).json({ error: 'Code not found' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('[admin/discounts update]', err);
+    res.status(500).json({ error: 'Could not update the code' });
+  }
 });
 
 router.delete('/discounts/:id', async (req: Request, res: Response) => {
-  await pool.query(`DELETE FROM discount_codes WHERE id = $1`, [req.params.id]);
-  res.json({ ok: true });
+  try {
+    await pool.query('DELETE FROM discount_codes WHERE id = $1', [req.params.id]);
+    res.json({ ok: true, archived: false });
+  } catch (err: any) {
+    // 23503 = still referenced by an order → archive instead of deleting
+    if (err?.code !== '23503') {
+      console.error('[admin/discounts delete]', err);
+      return res.status(500).json({ error: 'Could not delete the code' });
+    }
+    try {
+      await ensureArchiveColumn();
+      await pool.query(
+        `UPDATE discount_codes
+            SET active = FALSE,
+                archived_at = NOW(),
+                code = code || '~' || LEFT(id::text, 8)
+          WHERE id = $1 AND archived_at IS NULL`,
+        [req.params.id],
+      );
+      res.json({ ok: true, archived: true });
+    } catch (archiveErr) {
+      console.error('[admin/discounts archive]', archiveErr);
+      res.status(500).json({ error: 'Could not remove the code' });
+    }
+  }
 });
 
 // ── Gift vouchers ─────────────────────────────────────────────────────────────

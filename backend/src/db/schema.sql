@@ -98,6 +98,7 @@ CREATE TABLE IF NOT EXISTS discount_codes (
   valid_from      TIMESTAMPTZ,
   valid_until     TIMESTAMPTZ,
   active          BOOLEAN DEFAULT TRUE,
+  archived_at     TIMESTAMPTZ,              -- set instead of deleting once a code has been used on an order
   created_at      TIMESTAMPTZ DEFAULT NOW()
 );
 
