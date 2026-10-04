@@ -189,24 +189,6 @@ function HeroFridge() {
             <div className={single} style={magnetFace(SCENES.walk)} />
           </Placed>
         </div>
-
-        <motion.div
-          initial={reduce ? false : { opacity: 0, y: 16, scale: 0.9 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ type: 'spring', damping: 16, stiffness: 180, delay: 2.1 }}
-          className="absolute left-1/2 bottom-[4%] -translate-x-1/2 z-10"
-        >
-          <Link
-            href="/configure"
-            className="kk-float group relative inline-flex items-center gap-2 h-12 px-6 rounded-full bg-brand/95 text-white text-[15px] font-semibold whitespace-nowrap shadow-[0_10px_24px_-10px_rgba(0,0,0,.45)] hover:bg-brand-dark transition-colors"
-          >
-            {/* soft attention pulse — a compositor-only scale/opacity loop */}
-            <svg className="relative w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M12 15V3m0 0L7.5 7.5M12 3l4.5 4.5M4 15v4a2 2 0 002 2h12a2 2 0 002-2v-4" />
-            </svg>
-            <span className="relative">Upload now</span>
-          </Link>
-        </motion.div>
       </motion.div>
 
       {fine && (

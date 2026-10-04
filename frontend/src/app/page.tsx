@@ -4,6 +4,7 @@ import dynamic from 'next/dynamic';
 import { motion } from 'framer-motion';
 import Hero from '@/components/home/Hero';
 import Marquee from '@/components/home/Marquee';
+import FloatingUpload from '@/components/home/FloatingUpload';
 
 // Below-the-fold sections ship as separate chunks so the hero becomes
 // interactive sooner (still server-rendered, so their text stays crawlable)
@@ -48,6 +49,8 @@ export default function HomePage() {
       )}
 
       <div className="kk-defer"><FinalCta /></div>
+
+      <FloatingUpload />
     </div>
   );
 }
