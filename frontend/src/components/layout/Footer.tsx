@@ -19,7 +19,7 @@ export default function Footer() {
           <h3 className="font-heading font-bold mb-3">Shop</h3>
           <ul className="space-y-2 text-sm text-white/70">
             <li><Link href="/configure" className="hover:text-coral transition-colors">Make Magnets</Link></li>
-            <li><Link href="/cart" className="hover:text-coral transition-colors">Your Bag</Link></li>
+            <li><Link href="/cart" className="hover:text-coral transition-colors">Your Basket</Link></li>
           </ul>
         </div>
 

@@ -79,6 +79,11 @@ html {
 .kk-marquee { animation: kk-marquee 38s linear infinite; }
 .kk-marquee[data-paused='true'] { animation-play-state: paused; }
 
+/* Gentle bob for floating CTAs — transform only, runs on the compositor */
+@keyframes kk-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-9px); } }
+.kk-float { animation: kk-float 3.2s ease-in-out infinite; }
+.kk-float:hover { animation-play-state: paused; }
+
 /* Skip rendering below-the-fold sections until they're near the viewport */
 .kk-defer { content-visibility: auto; contain-intrinsic-size: auto 900px; }
 

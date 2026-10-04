@@ -164,31 +164,49 @@ function HeroFridge() {
           {/* Magnets */}
           <Placed mx={mx} my={my} depth={0.6} rotate={-4} delay={1.25} constraints={doorRef} draggable={fine}
             style={{ left: '17%', top: '7%', width: '19%' }}>
-            <div className={single} style={magnetFace(SCENES.coast)} />
+            <div className={single} style={magnetFace(SCENES.duck)} />
           </Placed>
           <Placed mx={mx} my={my} depth={1} rotate={5} delay={1.4} constraints={doorRef} draggable={fine}
             style={{ left: '62%', top: '5%', width: '22%' }}>
-            <div className={single} style={magnetFace(SCENES.night)} />
+            <div className={single} style={magnetFace(SCENES.shipside)} />
           </Placed>
 
           <Placed mx={mx} my={my} depth={0.35} rotate={0} delay={0.35} constraints={doorRef} draggable={fine}
             style={{ left: '22%', top: '33%', width: '52%' }}>
-            <AssemblingSet src={SCENES.hills} delay={0.45} />
+            <AssemblingSet src={SCENES.village} delay={0.45} />
           </Placed>
 
           <Placed mx={mx} my={my} depth={1.2} rotate={-7} delay={1.55} constraints={doorRef} draggable={fine}
-            style={{ left: '12%', top: '78%', width: '20%' }}>
-            <div className={single} style={magnetFace(SCENES.bloom)} />
+            style={{ left: '10%', top: '67%', width: '20%' }}>
+            <div className={single} style={magnetFace(SCENES.selfie)} />
           </Placed>
           <Placed mx={mx} my={my} depth={0.8} rotate={3} delay={1.7} constraints={doorRef} draggable={fine}
-            style={{ left: '43%', top: '81%', width: '17%' }}>
-            <div className={single} style={magnetFace(SCENES.picnic)} />
+            style={{ left: '42%', top: '69%', width: '17%' }}>
+            <div className={single} style={magnetFace(SCENES.pool)} />
           </Placed>
           <Placed mx={mx} my={my} depth={1.4} rotate={8} delay={1.85} constraints={doorRef} draggable={fine}
-            style={{ left: '71%', top: '74%', width: '21%' }}>
-            <div className={single} style={magnetFace(SCENES.city)} />
+            style={{ left: '71%', top: '64%', width: '21%' }}>
+            <div className={single} style={magnetFace(SCENES.walk)} />
           </Placed>
         </div>
+
+        <motion.div
+          initial={reduce ? false : { opacity: 0, y: 16, scale: 0.9 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ type: 'spring', damping: 16, stiffness: 180, delay: 2.1 }}
+          className="absolute left-1/2 bottom-[4%] -translate-x-1/2 z-10"
+        >
+          <Link
+            href="/configure"
+            className="kk-float group relative inline-flex items-center gap-2 h-12 px-6 rounded-full bg-brand/95 text-white text-[15px] font-semibold whitespace-nowrap shadow-[0_10px_24px_-10px_rgba(0,0,0,.45)] hover:bg-brand-dark transition-colors"
+          >
+            {/* soft attention pulse — a compositor-only scale/opacity loop */}
+            <svg className="relative w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M12 15V3m0 0L7.5 7.5M12 3l4.5 4.5M4 15v4a2 2 0 002 2h12a2 2 0 002-2v-4" />
+            </svg>
+            <span className="relative">Upload now</span>
+          </Link>
+        </motion.div>
       </motion.div>
 
       {fine && (
@@ -223,16 +241,16 @@ export default function Hero() {
       {/* Atmosphere: soft light + fine grain */}
       <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(80%_60%_at_85%_30%,rgba(0,110,113,.35),transparent_60%),radial-gradient(60%_50%_at_0%_100%,rgba(205,171,160,.14),transparent_60%)]" />
 
-      <div className="relative max-w-7xl mx-auto px-5 sm:px-8 pt-10 pb-16 sm:pt-16 lg:pt-20 lg:pb-24 grid lg:grid-cols-[1.05fr_1fr] gap-x-14 gap-y-10 items-center lg:min-h-[calc(100svh-72px)]">
+      <div className="relative max-w-7xl mx-auto px-5 sm:px-8 pt-10 pb-16 sm:pt-16 lg:pt-20 lg:pb-24 grid lg:grid-cols-[1.05fr_1fr] gap-x-14 gap-y-14 lg:gap-y-10 items-center lg:min-h-[calc(100svh-72px)]">
         {/* A: logo + headline */}
         <div className="lg:col-start-1 lg:row-start-1 lg:self-end">
-          <motion.div {...fadeUp(0)} className="flex items-center gap-3 mb-7">
-            <Image src="/logo-teal.png" alt="" width={64} height={64} priority className="w-12 h-12 sm:w-16 sm:h-16 brightness-0 invert" />
-            <span className="font-heading text-2xl sm:text-3xl leading-none">kustom kreations</span>
+          <motion.div {...fadeUp(0)} className="flex items-center justify-center lg:justify-start gap-3 mb-7">
+            <Image src="/logo-teal.png" alt="Kustom Kreations" width={112} height={112} priority className="w-24 h-24 sm:w-28 sm:h-28 lg:w-16 lg:h-16 brightness-0 invert" />
+            <span className="hidden lg:inline font-heading text-3xl leading-none" aria-hidden="true">kustom kreations</span>
           </motion.div>
           <RevealHeadline
             text="Bring Your Favourite Memories to Life"
-            className="font-heading font-bold text-[#FBF7F0] text-[2.6rem] leading-[1.04] sm:text-6xl lg:text-[4.4rem] xl:text-[5rem] tracking-[-0.015em]"
+            className="text-center lg:text-left font-heading font-bold text-[#FBF7F0] text-[2.6rem] leading-[1.04] sm:text-6xl lg:text-[4.4rem] xl:text-[5rem] tracking-[-0.015em]"
           />
         </div>
 

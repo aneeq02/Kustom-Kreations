@@ -6,9 +6,9 @@ import MagnetPreview from '@/components/studio/MagnetPreview';
 import { formatPrice } from '@/lib/pricing';
 import { calcSetPrice, type ApiMagnetSize, type ApiTileLayout } from '@/lib/tiledProducts';
 
-// One picture split across each layout's magnets — shows the jigsaw idea
-// (pre-rendered bitmap, see scripts/build-scenes.mjs)
-const SAMPLE_PHOTO = '/scenes/hills.webp';
+// One real photo split across each layout's magnets — shows the jigsaw idea
+// (see scripts/build-photos.mjs)
+const SAMPLE_PHOTO = '/scenes/village.webp';
 
 interface AddSheetProps {
   open: boolean;
@@ -41,7 +41,7 @@ export default function AddSheet({
       className="group relative flex flex-col items-center justify-end gap-3 rounded-xl bg-[#EFEDE8] hover:bg-[#E9E6DF] transition-colors pt-6 pb-4 px-3 cursor-pointer text-navy"
     >
       {l.badge && (
-        <span className="absolute top-2.5 right-2.5 text-[11px] font-semibold px-2 py-0.5 rounded-[3px] bg-brand text-white">
+        <span className="absolute top-2.5 right-2.5 z-10 text-[11px] font-semibold px-2 py-0.5 rounded-[3px] bg-brand text-white">
           {l.badge}
         </span>
       )}

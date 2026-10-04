@@ -8,7 +8,7 @@ import { useAuth } from '@/context/AuthContext';
 import BottomSheet from '@/components/configurator/BottomSheet';
 import { Input } from '@/components/ui/Input';
 import { api } from '@/lib/api';
-import { calcCartTotals, formatPrice, roundToCharmPrice, type LayoutDiscountMap } from '@/lib/pricing';
+import { applyMinimumTotal, calcCartTotals, formatPrice, type LayoutDiscountMap } from '@/lib/pricing';
 import { buildLayoutDiscountMap, fetchMagnetConfig } from '@/lib/tiledProducts';
 import type { ShippingMethod, ShippingAddress } from '@/types';
 
@@ -44,6 +44,9 @@ export default function CheckoutPanel({ onBack, onComplete }: CheckoutPanelProps
 
   const [shippingMethods, setShippingMethods] = useState<ShippingMethod[]>([]);
   const [selectedMethodId, setSelectedMethodId] = useState<string | null>(null);
+  // True once options have been fetched for the current country (an empty
+  // list then means "we don't deliver there right now", not "still loading")
+  const [shippingLoaded, setShippingLoaded] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [layoutDiscounts, setLayoutDiscounts] = useState<LayoutDiscountMap | undefined>(undefined);
@@ -72,10 +75,19 @@ export default function CheckoutPanel({ onBack, onComplete }: CheckoutPanelProps
   const { subtotal } = calcCartTotals(items, layoutDiscounts);
   const selectedMethod = shippingMethods.find(m => m.id === selectedMethodId);
   const shippingAmt = selectedMethod?.price ?? 0;
-  const discountAmt: number = meta.discountAmount ?? 0;
-  const voucherAmt: number = meta.voucherAmount ?? 0;
-  const total = roundToCharmPrice(Math.max(0, subtotal - discountAmt - voucherAmt + shippingAmt));
-  const ready = addressSaved && !!selectedMethodId && items.length > 0;
+  // A free-delivery code waives delivery entirely — no method to choose
+  const freeDelivery: boolean = !!meta.isFreeShipping;
+  const priced = applyMinimumTotal(
+    subtotal,
+    freeDelivery ? 0 : shippingAmt,
+    meta.discountAmount ?? 0,
+    meta.voucherAmount ?? 0,
+  );
+  const discountAmt = priced.discount;
+  const voucherAmt = priced.voucher;
+  const total = priced.total;
+  const ready = addressSaved && items.length > 0 && (freeDelivery || !!selectedMethodId);
+  const noDelivery = !freeDelivery && addressSaved && shippingLoaded && !loading && shippingMethods.length === 0;
 
   const fetchShipping = async () => {
     setLoading(true);
@@ -86,6 +98,7 @@ export default function CheckoutPanel({ onBack, onComplete }: CheckoutPanelProps
       );
       setShippingMethods(res.methods);
       setSelectedMethodId(res.methods[0]?.id ?? null);
+      setShippingLoaded(true);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Could not load delivery options. Please try again.');
     } finally {
@@ -103,12 +116,12 @@ export default function CheckoutPanel({ onBack, onComplete }: CheckoutPanelProps
     setAddressError('');
     setAddressSaved(true);
     setAddressOpen(false);
-    fetchShipping();
+    if (!freeDelivery) fetchShipping();
   };
 
   const buildCartPayload = () => ({
     shippingAddress: address,
-    shippingMethodId: selectedMethodId,
+    shippingMethodId: freeDelivery ? null : selectedMethodId,
     cartItems: items.map(i => ({
       productId: i.productId,
       productName: i.productName,
@@ -175,7 +188,7 @@ export default function CheckoutPanel({ onBack, onComplete }: CheckoutPanelProps
     <div className="flex flex-col">
       <div className="flex items-center gap-2 mb-6">
         {onBack && (
-          <button onClick={onBack} aria-label="Back to bag" className="w-9 h-9 -ml-2 flex items-center justify-center rounded-full hover:bg-ivory cursor-pointer">
+          <button onClick={onBack} aria-label="Back to basket" className="w-9 h-9 -ml-2 flex items-center justify-center rounded-full hover:bg-ivory cursor-pointer">
             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 18l-6-6 6-6" /></svg>
           </button>
         )}
@@ -209,8 +222,23 @@ export default function CheckoutPanel({ onBack, onComplete }: CheckoutPanelProps
             <path d="M3 7h11v9H3zM14 10h4l3 3v3h-7" /><circle cx="7" cy="17.5" r="1.8" /><circle cx="17" cy="17.5" r="1.8" />
           </svg>
           <div className="flex-1">
-            {loading && !shippingMethods.length ? (
+            {freeDelivery ? (
+              <p className="text-sm text-navy">
+                <span className="font-semibold text-brand">Free delivery</span>
+                {meta.discountCode && <span className="text-text-secondary"> with code {meta.discountCode}</span>}
+              </p>
+            ) : loading && !shippingMethods.length ? (
               <p className="text-sm text-text-secondary">Loading delivery options…</p>
+            ) : noDelivery ? (
+              <div role="alert" className="rounded-lg border border-[#E7C3B6] bg-[#F6E6E0] px-3.5 py-3 text-sm text-navy">
+                <p className="font-semibold">No delivery available at the moment</p>
+                <p className="mt-0.5 text-navy/75">
+                  We can’t currently deliver to {COUNTRY_LABEL[address.country]}. Please check back soon, or{' '}
+                  <button type="button" onClick={() => setAddressOpen(true)} className="underline font-medium cursor-pointer">
+                    use a different address
+                  </button>.
+                </p>
+              </div>
             ) : (
               <div className="flex flex-col gap-1.5">
                 {shippingMethods.map(m => (
@@ -252,11 +280,14 @@ export default function CheckoutPanel({ onBack, onComplete }: CheckoutPanelProps
         {voucherAmt > 0 && (
           <div className="flex justify-between text-brand"><span>Gift voucher</span><span>−{formatPrice(voucherAmt)}</span></div>
         )}
-        <div className="flex justify-between text-navy">
-          <span>Shipping</span>
-          <span>{selectedMethod ? (selectedMethod.isFree ? 'Free' : formatPrice(shippingAmt)) : '—'}</span>
+        <div className={`flex justify-between ${freeDelivery ? 'text-brand' : 'text-navy'}`}>
+          <span>Delivery</span>
+          <span>{freeDelivery ? 'Free' : selectedMethod ? (selectedMethod.isFree ? 'Free' : formatPrice(shippingAmt)) : '—'}</span>
         </div>
         <div className="flex justify-between text-navy font-semibold"><span>Total</span><span>{formatPrice(total)}</span></div>
+        {priced.adjusted && (
+          <p className="text-xs text-text-secondary">Orders have a £1.00 minimum, so the discount is capped.</p>
+        )}
       </div>
 
       {error && (
@@ -273,7 +304,11 @@ export default function CheckoutPanel({ onBack, onComplete }: CheckoutPanelProps
               Place Order
             </button>
             <p className="text-xs text-text-secondary text-center mt-2">
-              {addressSaved ? 'Choose a delivery option to continue' : 'Add your delivery address to continue'}
+              {!addressSaved
+                ? 'Add your delivery address to continue'
+                : noDelivery
+                  ? `Orders to ${COUNTRY_LABEL[address.country]} are paused for now`
+                  : 'Choose a delivery option to continue'}
             </p>
           </>
         ) : loading ? (
@@ -349,6 +384,7 @@ export default function CheckoutPanel({ onBack, onComplete }: CheckoutPanelProps
                   setAddress(a => ({ ...a, country: e.target.value as 'GB' | 'IM' }));
                   setShippingMethods([]);
                   setSelectedMethodId(null);
+                  setShippingLoaded(false);
                 }}
                 className={selectClass}
               >

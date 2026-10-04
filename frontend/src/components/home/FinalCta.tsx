@@ -33,9 +33,9 @@ export default function FinalCta() {
         <div className="absolute inset-0 bg-[radial-gradient(70%_80%_at_50%_0%,rgba(255,255,255,.14),transparent)] pointer-events-none" />
 
         {/* Magnets tumbling at the corners */}
-        <motion.div style={{ rotate: r1, y: y1, ...face(SCENES.coast) }} className="hidden sm:block absolute -left-6 top-10 w-32 lg:w-40 aspect-square rounded-[2px] shadow-[0_20px_40px_-12px_rgba(0,0,0,.5)]" />
-        <motion.div style={{ rotate: r2, y: y2, ...face(SCENES.bloom) }} className="hidden sm:block absolute -right-8 bottom-8 w-36 lg:w-44 aspect-square rounded-[2px] shadow-[0_20px_40px_-12px_rgba(0,0,0,.5)]" />
-        <motion.div style={{ rotate: r2, ...face(SCENES.night) }} className="sm:hidden absolute -right-6 -top-6 w-24 aspect-square rounded-[2px] opacity-90 shadow-[0_16px_30px_-10px_rgba(0,0,0,.5)]" />
+        <motion.div style={{ rotate: r1, y: y1, ...face(SCENES.sculpture) }} className="hidden sm:block absolute -left-6 top-10 w-32 lg:w-40 aspect-square rounded-[2px] shadow-[0_20px_40px_-12px_rgba(0,0,0,.5)]" />
+        <motion.div style={{ rotate: r2, y: y2, ...face(SCENES.duck) }} className="hidden sm:block absolute -right-8 bottom-8 w-36 lg:w-44 aspect-square rounded-[2px] shadow-[0_20px_40px_-12px_rgba(0,0,0,.5)]" />
+        <motion.div style={{ rotate: r2, ...face(SCENES.shipside) }} className="sm:hidden absolute -right-6 -top-6 w-24 aspect-square rounded-[2px] opacity-90 shadow-[0_16px_30px_-10px_rgba(0,0,0,.5)]" />
 
         <div className="relative">
           <p className="text-white/65 text-sm font-medium uppercase tracking-[0.18em] mb-5">Ready to create something beautiful?</p>

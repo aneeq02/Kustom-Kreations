@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
+import { useState, useEffect, useRef, useCallback, useSyncExternalStore, Suspense } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import dynamic from 'next/dynamic';
@@ -26,22 +26,27 @@ const BulkDiscountPopup = dynamic(() => import('@/components/configurator/BulkDi
 
 // On-screen size of a product: grows with its real printed width, but
 // compressed (square root) so a 5×5 set doesn't dwarf a single magnet.
-function displayPx(item: CartItem, compact: boolean) {
+const PHONE_MAX = 640;
+
+// On-screen size of a product. Phones: a two-column grid that fills the
+// screen — singles take one column, sets span both. Larger screens: grows with
+// the real printed width, compressed (square root) so a 5×5 set doesn't dwarf a single.
+function displayPx(item: CartItem, viewportW: number) {
   const { cols } = itemGrid(item);
+  if (viewportW < PHONE_MAX) {
+    const avail = viewportW - 32; // px-4 page gutters
+    return cols > 1 ? Math.round(avail * 0.92) : Math.round((avail - 24) / 2 - 8);
+  }
   const widthMm = cols * itemSizeMm(item);
-  return Math.round(120 * Math.sqrt(widthMm / 50) * (compact ? 0.8 : 1));
+  return Math.round(120 * Math.sqrt(widthMm / 50));
 }
 
-function useCompact() {
-  const [compact, setCompact] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia('(max-width: 639px)');
-    const update = () => setCompact(mq.matches);
-    update();
-    mq.addEventListener('change', update);
-    return () => mq.removeEventListener('change', update);
-  }, []);
-  return compact;
+function useViewportWidth() {
+  return useSyncExternalStore(
+    cb => { window.addEventListener('resize', cb); return () => window.removeEventListener('resize', cb); },
+    () => window.innerWidth,
+    () => 1024,
+  );
 }
 
 function StudioMenu({ onClose }: { onClose: () => void }) {
@@ -76,9 +81,10 @@ function StudioMenu({ onClose }: { onClose: () => void }) {
 function Studio() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const compact = useCompact();
+  const viewportW = useViewportWidth();
+  const phone = viewportW < PHONE_MAX;
   const {
-    items, hydrated, addItem, updateItem, removeItem, uploadingIds, setUploading, openBag,
+    items, hydrated, addItem, updateItem, removeItem, clearCart, uploadingIds, setUploading, openBag,
   } = useCart();
 
   const [config, setConfig] = useState<MagnetProductConfig | null>(null);
@@ -90,6 +96,10 @@ function Studio() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [sizeSheetOpen, setSizeSheetOpen] = useState(false);
   const [bulkPopup, setBulkPopup] = useState<{ remaining: number; pct: number } | null>(null);
+  const [confirmClear, setConfirmClear] = useState(false);
+  // Last removed magnet, kept briefly so a mis-tap on × can be undone
+  const [undo, setUndo] = useState<CartItem | null>(null);
+  const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Original photos picked this session (object URLs) — faster than refetching
   // the upload and works before it finishes. Falls back to item.sourceUrl.
@@ -243,6 +253,33 @@ function Studio() {
     setEditingId(null);
   };
 
+  const removeWithUndo = (item: CartItem) => {
+    removeItem(item.id);
+    if (undo && undo.id !== item.id) setLocalUrl(undo.id, null); // previous undo window ends
+    setUndo(item);
+    if (undoTimer.current) clearTimeout(undoTimer.current);
+    undoTimer.current = setTimeout(() => {
+      setLocalUrl(item.id, null); // free the photo once undo is no longer possible
+      setUndo(null);
+    }, 5000);
+  };
+
+  const undoRemove = () => {
+    if (!undo) return;
+    if (undoTimer.current) clearTimeout(undoTimer.current);
+    addItem(undo); // same id, so its photo URL still lines up
+    setUndo(null);
+  };
+
+  const clearAll = () => {
+    for (const item of items) setLocalUrl(item.id, null);
+    if (undo) setLocalUrl(undo.id, null);
+    if (undoTimer.current) clearTimeout(undoTimer.current);
+    setUndo(null);
+    clearCart();
+    setConfirmClear(false);
+  };
+
   const startReplace = (item: CartItem) => {
     setEditingId(null);
     setReplaceId(item.id);
@@ -260,8 +297,8 @@ function Studio() {
   return (
     <div className="min-h-screen bg-[#F7F6F2] flex flex-col">
       {/* ── Top bar ───────────────────────────────────────────── */}
-      <header className="sticky top-0 z-30 h-14 bg-white border-b border-border flex items-center px-3">
-        <div className="flex-1 flex items-center gap-1">
+      <header className="sticky top-0 z-30 h-14 bg-white border-b border-border flex items-center gap-2 px-2 min-[380px]:px-3">
+        <div className="flex-1 min-w-0 flex items-center gap-1">
           <button
             onClick={() => setMenuOpen(o => !o)}
             aria-label="Menu"
@@ -276,21 +313,23 @@ function Studio() {
           </Link>
         </div>
 
-        <p className="text-[15px] text-navy font-medium tabular-nums whitespace-nowrap" aria-live="polite">
+        <p className="min-w-0 truncate text-center text-sm min-[380px]:text-[15px] text-navy font-medium tabular-nums" aria-live="polite">
           {items.length > 0
             ? <>{magnetCount} Magnet{magnetCount !== 1 ? 's' : ''} · {formatPrice(subtotal)}</>
             : 'Create your magnets'}
         </p>
 
-        <div className="flex-1 flex justify-end">
+        <div className="flex-1 min-w-0 flex justify-end">
           <button
             onClick={openBag}
-            className="relative inline-flex items-center gap-1.5 pl-3 pr-3.5 h-9 rounded-lg bg-brand text-white text-sm font-semibold hover:bg-brand-dark transition-colors cursor-pointer"
+            aria-label={`Basket${items.length ? `, ${items.length} item${items.length > 1 ? 's' : ''}` : ''}`}
+            className="relative shrink-0 inline-flex items-center justify-center gap-1.5 w-10 min-[380px]:w-auto min-[380px]:pl-3 min-[380px]:pr-3.5 h-9 rounded-lg bg-brand text-white text-sm font-semibold hover:bg-brand-dark transition-colors cursor-pointer"
           >
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M6 7h12l-1 13H7L6 7z" /><path d="M9 7a3 3 0 016 0" />
             </svg>
-            Bag
+            {/* icon-only on very narrow phones so the title never collides */}
+            <span className="hidden min-[380px]:inline" aria-hidden="true">Basket</span>
             {items.length > 0 && (
               <span className="absolute -top-1.5 -right-1.5 min-w-5 h-5 px-1 rounded-full bg-navy text-white text-[11px] font-bold flex items-center justify-center ring-2 ring-white">
                 {items.length}
@@ -329,41 +368,75 @@ function Studio() {
             </p>
           </div>
         ) : (
-          <div className="flex-1 px-4 pt-8 pb-40">
+          <div className="flex-1 px-4 pt-4 sm:pt-6 pb-40">
             {items.length > 0 && (
-              <p className="text-center text-sm text-text-secondary mb-8">Tap a magnet to crop, resize or change it</p>
+              <div className="max-w-6xl mx-auto flex items-center gap-3 mb-6 sm:mb-10">
+                <button
+                  onClick={() => setConfirmClear(true)}
+                  className="inline-flex items-center gap-1.5 h-10 px-3 -ml-1 rounded-lg text-sm font-medium text-navy/70 hover:text-red-700 hover:bg-red-50 transition-colors cursor-pointer"
+                >
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" /></svg>
+                  Clear all
+                </button>
+                <p className="flex-1 text-right sm:text-center text-sm text-text-secondary sm:pr-24">
+                  {phone ? 'Tap a magnet to edit it' : 'Tap a magnet to crop, resize or change it'}
+                </p>
+              </div>
             )}
-            <div className="max-w-6xl mx-auto flex flex-wrap items-center justify-center gap-x-10 gap-y-12 sm:gap-x-14">
+            <div className="max-w-6xl mx-auto grid grid-cols-2 justify-items-center gap-x-6 gap-y-9 sm:flex sm:flex-wrap sm:items-end sm:justify-center sm:gap-x-14 sm:gap-y-12">
               <AnimatePresence initial={false}>
                 {items.map(item => {
                   const { rows, cols } = itemGrid(item);
                   const uploading = uploadingIds.has(item.id);
+                  const label = `${rows * cols > 1 ? `${rows}×${cols} set` : 'Single'} · ${itemSizeMm(item)}mm`;
                   return (
-                    <motion.button
+                    <motion.div
                       key={item.id}
                       layout
                       initial={{ opacity: 0, scale: 0.9 }}
                       animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.9 }}
+                      exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.15 } }}
                       transition={{ type: 'spring', damping: 26, stiffness: 300 }}
-                      onClick={() => setEditingId(item.id)}
-                      className="group relative flex flex-col items-center gap-3 cursor-pointer"
-                      aria-label={`Edit ${item.productName}`}
+                      className={`flex flex-col items-center gap-2.5 ${cols > 1 ? 'col-span-2' : ''}`}
                     >
-                      <MagnetPreview
-                        thumbUrl={item.thumbUrl || null}
-                        rows={rows}
-                        cols={cols}
-                        size={displayPx(item, compact)}
-                        uploading={uploading}
-                        warning={itemNeedsReplace(item, uploading)}
-                        className="transition-transform duration-200 group-hover:-translate-y-1"
-                      />
+                      <div className="relative">
+                        <button
+                          onClick={() => setEditingId(item.id)}
+                          className="group block cursor-pointer"
+                          aria-label={`Edit ${label}`}
+                        >
+                          <MagnetPreview
+                            thumbUrl={item.thumbUrl || null}
+                            rows={rows}
+                            cols={cols}
+                            size={displayPx(item, viewportW)}
+                            uploading={uploading}
+                            warning={itemNeedsReplace(item, uploading)}
+                            className="transition-transform duration-200 group-hover:-translate-y-1"
+                          />
+                        </button>
+                        {/* Remove — 44px hit area around a 28px chip */}
+                        <button
+                          onClick={() => removeWithUndo(item)}
+                          aria-label={`Remove ${label}`}
+                          className="absolute -top-4 -right-4 w-11 h-11 flex items-center justify-center cursor-pointer group/x"
+                        >
+                          <span className="w-7 h-7 rounded-full bg-white text-navy border border-border shadow-[0_2px_8px_rgba(26,26,24,0.18)] flex items-center justify-center group-hover/x:bg-navy group-hover/x:text-white transition-colors">
+                            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12" /></svg>
+                          </span>
+                        </button>
+                      </div>
                       <span className="text-xs text-text-secondary">
-                        {rows * cols > 1 ? `${rows}×${cols} set` : 'Single'} · {itemSizeMm(item)}mm
-                        {item.quantity > 1 && <> · ×{item.quantity}</>}
+                        {label}{item.quantity > 1 && <> · ×{item.quantity}</>}
                       </span>
-                    </motion.button>
+                      <button
+                        onClick={() => setEditingId(item.id)}
+                        className="-mt-1 inline-flex items-center gap-1.5 h-9 px-4 rounded-full border border-border bg-white text-[13px] font-medium text-navy hover:border-brand hover:text-brand transition-colors cursor-pointer"
+                      >
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 20h4L19 9a2.8 2.8 0 00-4-4L4 16z" /><path d="M13.5 6.5l4 4" /></svg>
+                        Edit
+                      </button>
+                    </motion.div>
                   );
                 })}
               </AnimatePresence>
@@ -390,7 +463,7 @@ function Studio() {
               className="flex flex-col items-center gap-1 px-3 py-1 text-[11px] font-medium text-navy/80 hover:text-navy cursor-pointer"
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M6 7h12l-1 13H7L6 7z" /><path d="M9 7a3 3 0 016 0" /></svg>
-              Review
+              Basket
             </button>
             <span className="w-px h-9 bg-border mx-2" />
             <button
@@ -419,7 +492,7 @@ function Studio() {
 
       <BottomSheet open={sizeSheetOpen} onClose={() => setSizeSheetOpen(false)} label="Magnet size">
         <h2 className="font-body text-lg font-semibold text-navy text-center mb-1">Magnet size</h2>
-        <p className="text-sm text-text-secondary text-center mb-5">Applies to every magnet in your bag. You can change one at a time by tapping it.</p>
+        <p className="text-sm text-text-secondary text-center mb-5">Applies to every magnet in your basket. You can change one at a time by tapping it.</p>
         <div className="flex flex-col gap-2">
           {sizes.map(s => (
             <button
@@ -462,6 +535,41 @@ function Studio() {
           />
         )}
       </AnimatePresence>
+
+      {/* Undo after removing a magnet — sits above the floating toolbar */}
+      <AnimatePresence>
+        {undo && (
+          <motion.div
+            role="status"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 12, transition: { duration: 0.15 } }}
+            className="fixed bottom-28 inset-x-0 z-30 flex justify-center px-4 pointer-events-none"
+          >
+            <div className="pointer-events-auto flex items-center gap-4 bg-navy text-white text-sm rounded-xl pl-4 pr-1.5 py-1.5 shadow-lg">
+              Magnet removed
+              <button onClick={undoRemove} className="h-9 px-3 rounded-lg font-semibold text-[#9FD3D0] hover:bg-white/10 cursor-pointer">
+                Undo
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <BottomSheet open={confirmClear} onClose={() => setConfirmClear(false)} label="Clear basket">
+        <h2 className="font-heading text-2xl text-navy mb-2">Clear your basket?</h2>
+        <p className="text-sm text-text-secondary mb-6">
+          This removes all {items.length} item{items.length !== 1 ? 's' : ''} ({magnetCount} magnet{magnetCount !== 1 ? 's' : ''}). You can’t undo this.
+        </p>
+        <div className="grid grid-cols-2 gap-2">
+          <button onClick={() => setConfirmClear(false)} className="h-12 rounded-lg border border-border font-semibold text-navy hover:border-navy/40 cursor-pointer">
+            Keep them
+          </button>
+          <button onClick={clearAll} className="h-12 rounded-lg bg-red-700 text-white font-semibold hover:bg-red-800 cursor-pointer">
+            Clear all
+          </button>
+        </div>
+      </BottomSheet>
 
       {bulkPopup && (
         <BulkDiscountPopup remaining={bulkPopup.remaining} pct={bulkPopup.pct} onClose={() => setBulkPopup(null)} />

@@ -14,7 +14,7 @@ const CheckoutPanel = dynamic(() => import('@/components/checkout/CheckoutPanel'
 });
 import { api } from '@/lib/api';
 import {
-  buildLayoutGroupQty, calcCartTotals, formatPrice, getItemBulkDiscountPct, type LayoutDiscountMap,
+  applyMinimumTotal, buildLayoutGroupQty, calcCartTotals, formatPrice, getItemBulkDiscountPct, type LayoutDiscountMap,
 } from '@/lib/pricing';
 import { buildLayoutDiscountMap, fetchMagnetConfig, type ApiTileLayout } from '@/lib/tiledProducts';
 import { itemGrid, itemNeedsReplace, itemSizeMm, magnetsInItem } from '@/lib/studio';
@@ -57,8 +57,28 @@ export default function BagDrawer() {
 
   const { subtotal } = calcCartTotals(items, layoutDiscounts);
   const groupQty = buildLayoutGroupQty(items);
-  const discountAmt = appliedDiscount ? parseFloat(appliedDiscount.discountAmount) : 0;
-  const voucherAmt = appliedVoucher ? Math.min(parseFloat(appliedVoucher.balance), Math.max(0, subtotal - discountAmt)) : 0;
+  const rawDiscount = appliedDiscount ? parseFloat(appliedDiscount.discountAmount) : 0;
+  const freeDelivery = !!appliedDiscount?.isFreeShipping;
+  const rawVoucher = appliedVoucher ? Math.min(parseFloat(appliedVoucher.balance), Math.max(0, subtotal - rawDiscount)) : 0;
+  // Codes come off the basket TOTAL (never per item), and never below the £1
+  // PayPal minimum. Delivery is added (or waived) at checkout.
+  const priced = applyMinimumTotal(subtotal, 0, rawDiscount, rawVoucher);
+  const discountAmt = priced.discount;
+  const voucherAmt = priced.voucher;
+  const discountedTotal = priced.amount;
+  const hasSavings = discountAmt > 0 || voucherAmt > 0;
+
+  // A promo's £ value depends on the basket (e.g. 10% of it) — re-check it
+  // whenever the basket total changes so the shown saving stays accurate.
+  const promoCodeApplied = appliedDiscount?.code;
+  useEffect(() => {
+    if (!promoCodeApplied || !(subtotal > 0)) return;
+    let cancelled = false;
+    api.post<DiscountValidation>('/discounts/validate', { code: promoCodeApplied, subtotal, currency: 'GBP' })
+      .then(res => { if (!cancelled) setAppliedDiscount(res); })
+      .catch(() => { if (!cancelled) { setAppliedDiscount(null); setCodeError(`${promoCodeApplied} no longer applies to this basket`); } });
+    return () => { cancelled = true; };
+  }, [promoCodeApplied, subtotal]);
   const magnetCount = items.reduce((s, i) => s + i.quantity * magnetsInItem(i), 0);
 
   // Bulk-discount progress: the layout in the bag closest to unlocking its discount
@@ -104,8 +124,10 @@ export default function BagDrawer() {
     sessionStorage.setItem('kk_checkout_meta', JSON.stringify({
       discountCodeId: appliedDiscount?.id ?? null,
       voucherId: appliedVoucher?.id ?? null,
-      discountAmount: discountAmt,
-      voucherAmount: voucherAmt,
+      discountCode: appliedDiscount?.code ?? null,
+      discountAmount: rawDiscount,
+      voucherAmount: rawVoucher,
+      isFreeShipping: freeDelivery,
       subtotal,
     }));
     setView('checkout');
@@ -138,7 +160,7 @@ export default function BagDrawer() {
             key="bag-panel"
             role="dialog"
             aria-modal="true"
-            aria-label={view === 'bag' ? 'Your bag' : 'Checkout'}
+            aria-label={view === 'bag' ? 'Your basket' : 'Checkout'}
             initial={{ x: '100%' }}
             animate={{ x: 0 }}
             exit={{ x: '100%', transition: { duration: 0.2 } }}
@@ -162,7 +184,14 @@ export default function BagDrawer() {
                 {/* Header */}
                 <div className="px-6 pt-6 pb-4 border-b border-border">
                   <h2 className="font-body text-lg font-semibold text-navy pr-10">
-                    My Bag{items.length > 0 && <> · {formatPrice(subtotal)}</>}
+                    My Basket
+                    {items.length > 0 && (
+                      <>
+                        {' · '}
+                        {hasSavings && <span className="text-text-secondary font-normal line-through mr-1.5">{formatPrice(subtotal)}</span>}
+                        <span className={hasSavings ? 'text-brand' : ''}>{formatPrice(discountedTotal)}</span>
+                      </>
+                    )}
                   </h2>
 
                   {items.length > 0 && (progress.best || progress.unlocked) && (
@@ -194,7 +223,7 @@ export default function BagDrawer() {
                   {items.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-center py-16">
                       <MagnetPreview thumbUrl={null} rows={2} cols={2} size={72} className="opacity-60 mb-5" />
-                      <p className="text-navy font-medium mb-1">Your bag is empty</p>
+                      <p className="text-navy font-medium mb-1">Your basket is empty</p>
                       <p className="text-sm text-text-secondary mb-6">Turn a favourite photo into magnets.</p>
                       <button
                         onClick={() => { closeBag(); router.push('/configure'); }}
@@ -280,7 +309,7 @@ export default function BagDrawer() {
                         <div className="flex flex-wrap gap-2 mb-3">
                           {appliedDiscount && (
                             <span className="inline-flex items-center gap-1.5 text-xs font-semibold bg-ivory text-navy px-2 py-1 rounded-[3px]">
-                              {appliedDiscount.code} · −{formatPrice(discountAmt)}
+                              {appliedDiscount.code} · {freeDelivery ? 'Free delivery' : `−${formatPrice(discountAmt)}`}
                               <button onClick={() => setAppliedDiscount(null)} aria-label="Remove promo code" className="text-text-secondary hover:text-navy cursor-pointer">✕</button>
                             </span>
                           )}
@@ -343,11 +372,39 @@ export default function BagDrawer() {
 
                 {/* Footer */}
                 {items.length > 0 && (
-                  <div className="px-6 pt-3 pb-6 border-t border-border">
-                    <div className="flex justify-between text-sm text-text-secondary mb-3">
-                      <span>{magnetCount} magnet{magnetCount !== 1 ? 's' : ''}</span>
-                      <span>Delivery calculated at checkout</span>
-                    </div>
+                  <div className="px-6 pt-4 pb-6 border-t border-border">
+                    <dl className="flex flex-col gap-1.5 text-sm mb-4">
+                      <div className="flex justify-between text-navy/80">
+                        <dt>Subtotal ({magnetCount} magnet{magnetCount !== 1 ? 's' : ''})</dt>
+                        <dd className="tabular-nums">{formatPrice(subtotal)}</dd>
+                      </div>
+                      {discountAmt > 0 && (
+                        <div className="flex justify-between text-brand">
+                          <dt>Promo {appliedDiscount?.code}</dt>
+                          <dd className="tabular-nums">−{formatPrice(discountAmt)}</dd>
+                        </div>
+                      )}
+                      {voucherAmt > 0 && (
+                        <div className="flex justify-between text-brand">
+                          <dt>Gift voucher</dt>
+                          <dd className="tabular-nums">−{formatPrice(voucherAmt)}</dd>
+                        </div>
+                      )}
+                      {freeDelivery && (
+                        <div className="flex justify-between text-brand">
+                          <dt>Delivery ({appliedDiscount?.code})</dt>
+                          <dd>Free</dd>
+                        </div>
+                      )}
+                      <div className="flex justify-between text-navy font-semibold text-base pt-1.5 border-t border-border/70">
+                        <dt>Total</dt>
+                        <dd className="tabular-nums">{formatPrice(discountedTotal)}</dd>
+                      </div>
+                      {priced.adjusted && (
+                        <p className="text-xs text-text-secondary">Orders have a £1.00 minimum, so the discount is capped here.</p>
+                      )}
+                      {!freeDelivery && <p className="text-xs text-text-secondary">Delivery calculated at checkout</p>}
+                    </dl>
                     <button
                       onClick={goCheckout}
                       disabled={!canCheckout}

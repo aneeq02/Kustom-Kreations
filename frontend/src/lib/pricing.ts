@@ -61,3 +61,33 @@ export function roundToCharmPrice(amount: number): number {
   const flooredPence = Math.max(0, Math.floor((pence - 1) / 50) * 50);
   return flooredPence / 100;
 }
+
+// Shop policy: no order totals under £1 (PayPal itself has no minimum, but its
+// fixed per-sale fee makes tiny orders loss-making). Mirrors backend services/pricing.ts:
+// if codes would push the total under £1, give back part of the voucher
+// first, then the promo, so the order still totals at least £1.
+export const MIN_ORDER_TOTAL = 1;
+
+export function applyMinimumTotal(subtotal: number, shipping: number, discount: number, voucher: number) {
+  const round2 = (n: number) => Math.round(n * 100) / 100;
+  let raw = subtotal - discount - voucher + shipping;
+  let adjusted = false;
+  if (raw < MIN_ORDER_TOTAL) {
+    adjusted = true;
+    let shortfall = MIN_ORDER_TOTAL - raw;
+    const fromVoucher = Math.min(voucher, shortfall);
+    voucher = round2(voucher - fromVoucher);
+    shortfall = round2(shortfall - fromVoucher);
+    discount = round2(Math.max(0, discount - shortfall));
+    raw = subtotal - discount - voucher + shipping;
+  }
+  return {
+    discount,
+    voucher,
+    /** before charm rounding — what the basket shows */
+    amount: round2(raw),
+    /** final charged total (charm-rounded, never below the minimum) */
+    total: Math.max(MIN_ORDER_TOTAL, roundToCharmPrice(raw)),
+    adjusted,
+  };
+}

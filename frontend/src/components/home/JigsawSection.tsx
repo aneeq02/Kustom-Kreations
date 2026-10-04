@@ -46,7 +46,7 @@ export default function JigsawSection() {
           <div className="absolute inset-0 rounded-full bg-[radial-gradient(closest-side,#EFE6DC,transparent)]" />
           <div className="relative grid grid-cols-3 gap-[3px] aspect-square w-[78%] mx-auto">
             {Array.from({ length: 9 }, (_, i) => (
-              <Piece key={i} i={i} spread={reduce ? still : spread} src={SCENES.hills} />
+              <Piece key={i} i={i} spread={reduce ? still : spread} src={SCENES.village} />
             ))}
           </div>
         </div>

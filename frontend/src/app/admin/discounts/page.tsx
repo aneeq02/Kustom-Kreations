@@ -28,7 +28,10 @@ const blank = { code: '', type: 'percentage', value: '', minOrder: '', maxUses: 
 
 function describe(d: Discount) {
   const parts = [
-    d.type === 'percentage' ? `${parseFloat(d.value)}% off` : d.type === 'fixed' ? `${gbp(d.value)} off` : 'Free delivery',
+    d.type === 'percent' || d.type === 'percentage' ? `${parseFloat(d.value)}% off`
+      : d.type === 'fixed_gbp' || d.type === 'fixed' ? `${gbp(d.value)} off`
+      : d.type === 'free_shipping' ? 'Free delivery'
+      : d.type,
   ];
   if (d.min_order_amount) parts.push(`min ${gbp(d.min_order_amount)}`);
   if (d.max_uses) parts.push(`${d.used_count}/${d.max_uses} used`);
@@ -276,7 +279,7 @@ export default function AdminDiscountsPage() {
           <div className="flex flex-col gap-4">
             <h2 className="font-heading text-2xl text-navy">Delete {confirmDelete.code}?</h2>
             <p className="text-sm text-text-secondary">
-              Customers won’t be able to use this code any more. To stop it temporarily, pause it instead.
+              Customers won’t be able to use this code any more. If it’s already been used on an order, it’s archived instead so that order keeps its record — either way it disappears from this list. To stop it temporarily, pause it instead.
             </p>
             <div className="grid grid-cols-2 gap-2">
               <Btn variant="secondary" size="lg" onClick={() => setConfirmDelete(null)}>Keep it</Btn>

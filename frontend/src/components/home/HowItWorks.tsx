@@ -29,7 +29,7 @@ const face = (src: string) => ({
 // ── Step visuals — each loops gently while it's on screen ───────────────────
 
 function UploadVisual() {
-  const thumbs = [SCENES.coast, SCENES.bloom, SCENES.night, SCENES.picnic];
+  const thumbs = [SCENES.duck, SCENES.selfie, SCENES.shipside, SCENES.sculpture];
   return (
     <div className="relative w-[230px] h-[300px] rounded-[28px] bg-white shadow-[0_30px_60px_-25px_rgba(26,26,24,.35)] border border-border p-4 flex flex-col">
       <div className="w-14 h-1.5 rounded-full bg-border mx-auto mb-4" />
@@ -62,7 +62,7 @@ function CropVisual() {
       <div className="relative w-[230px] h-[230px] rounded-[3px] overflow-hidden shadow-[0_30px_60px_-25px_rgba(26,26,24,.45)]">
         <motion.div
           className="absolute -inset-[25%]"
-          style={face(SCENES.coast)}
+          style={face(SCENES.selfie)}
           animate={{ scale: [1, 1.18, 1.1, 1], x: [0, -18, 12, 0], y: [0, 10, -8, 0] }}
           transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
         />
@@ -86,7 +86,7 @@ function CropVisual() {
 }
 
 function DeliverVisual() {
-  const mags = [SCENES.hills, SCENES.city, SCENES.bloom];
+  const mags = [SCENES.village, SCENES.walk, SCENES.pool];
   return (
     <div className="relative w-[260px] h-[280px]">
       {mags.map((src, i) => (
@@ -145,7 +145,7 @@ function StepNumber({ n, active }: { n: number; active: boolean }) {
 const HEADER = (
   <div className="max-w-xl">
     <p className="text-brand text-sm font-medium uppercase tracking-[0.16em] mb-3">Effortlessly simple</p>
-    <h2 className="font-heading text-[2.6rem] sm:text-6xl leading-[1.02] text-navy">Order in under<br />three minutes</h2>
+    <h2 className="font-heading text-[2.6rem] sm:text-6xl leading-[1.02] text-navy">Order in<br />minutes</h2>
     <p className="text-text-secondary text-lg mt-4">Simple enough for a 10-year-old, beautiful enough for an 80-year-old.</p>
   </div>
 );

@@ -64,7 +64,7 @@ export default function Navbar() {
           {/* Bag */}
           <button
             onClick={openBag}
-            aria-label={`Bag${mounted && items.length ? `, ${items.length} item${items.length > 1 ? 's' : ''}` : ''}`}
+            aria-label={`Basket${mounted && items.length ? `, ${items.length} item${items.length > 1 ? 's' : ''}` : ''}`}
             className="relative flex items-center justify-center w-10 h-10 rounded-full text-navy hover:bg-cream transition-colors cursor-pointer"
           >
             <svg className="w-[22px] h-[22px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
