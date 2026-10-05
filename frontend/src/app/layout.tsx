@@ -4,6 +4,7 @@ import './globals.css';
 import SiteShell from '@/components/layout/SiteShell';
 import { CartProvider } from '@/context/CartContext';
 import { AuthProvider } from '@/context/AuthContext';
+import { SITE_URL } from '@/lib/site';
 
 const cormorant = Cormorant_Garamond({
   variable: '--font-cormorant',
@@ -20,6 +21,7 @@ const dmSans = DM_Sans({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: {
     default: 'Kustom Kreations',
     template: '%s | Kustom Kreations',
@@ -30,6 +32,7 @@ export const metadata: Metadata = {
     type: 'website',
     locale: 'en_GB',
     siteName: 'Kustom Kreations',
+    url: SITE_URL,
   },
   robots: { index: true, follow: true },
 };
