@@ -247,7 +247,7 @@ router.post('/place-order', optionalAuth, async (req: AuthRequest, res: Response
         qty: i.quantity,
         price: i.itemTotal.toFixed(2),
       })),
-    }).catch(() => {});
+    }).catch(err => console.error('[email] order confirmation failed:', err?.message ?? err));
   }
 
   res.status(201).json({ orderId: order.id, orderNumber });
@@ -505,7 +505,7 @@ router.post('/paypal/capture', optionalAuth, async (req: AuthRequest, res: Respo
         firstName: shippingAddress.firstName,
         total: computedTotal.toFixed(2), currency,
         items: enrichedItems.map(i => ({ name: i.productName, qty: i.quantity, price: i.itemTotal.toFixed(2) })),
-      }).catch(() => {});
+      }).catch(err => console.error('[email] order confirmation failed:', err?.message ?? err));
     }
 
     res.status(201).json({ orderId: order.id, orderNumber });
@@ -593,7 +593,7 @@ if (process.env.PAYPAL_DEV_BYPASS === 'true' && process.env.NODE_ENV !== 'produc
           firstName: shippingAddress.firstName,
           total: computedTotal.toFixed(2), currency,
           items: enrichedItems.map(i => ({ name: i.productName, qty: i.quantity, price: i.itemTotal.toFixed(2) })),
-        }).catch(() => {});
+        }).catch(err => console.error('[email] order confirmation failed:', err?.message ?? err));
       }
 
       res.status(201).json({ orderId: order.id, orderNumber });

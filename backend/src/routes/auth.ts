@@ -6,6 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 import pool from '../db/pool';
 import { requireAuth, AuthRequest } from '../middleware/auth';
 import { sendPasswordReset } from '../services/email';
+import { publicSiteUrl } from '../utils/siteUrl';
 
 const router = Router();
 
@@ -112,7 +113,7 @@ router.post('/forgot-password', body('email').isEmail(), async (req: Request, re
       `INSERT INTO refresh_tokens (customer_id, token_hash, expires_at) VALUES ($1, crypt($2, gen_salt('bf')), $3)`,
       [result.rows[0].id, token, expires]
     );
-    const resetUrl = `${process.env.FRONTEND_URL}/auth/reset-password?token=${token}&id=${result.rows[0].id}`;
+    const resetUrl = `${publicSiteUrl()}/auth/reset-password?token=${token}&id=${result.rows[0].id}`;
     await sendPasswordReset(email, resetUrl);
   }
   // Always 200 to avoid email enumeration
