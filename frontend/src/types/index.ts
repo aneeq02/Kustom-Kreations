@@ -47,6 +47,9 @@ export interface CartItem {
   sourceUrl?: string;       // server URL of the uploaded original
   naturalW?: number;
   naturalH?: number;
+  // True for a "double your order" checkout-upsell duplicate — carries the
+  // admin-configurable upsell discount on top of any normal bulk discount.
+  isUpsellSet?: boolean;
 }
 
 export interface CropData {

@@ -28,6 +28,8 @@ export interface ApiPrintConfig {
   targetDpi: number;
   bleedMm: number;
   safeAreaMm: number;
+  // Admin-configurable % off the checkout "double your order" duplicate set
+  upsellDiscountPct: number;
 }
 
 export interface MagnetProductConfig {
@@ -41,6 +43,7 @@ export const DEFAULT_PRINT_CONFIG: ApiPrintConfig = {
   targetDpi: 300,
   bleedMm: 3,
   safeAreaMm: 2,
+  upsellDiscountPct: 25,
 };
 
 // ── Fetch with retry ──────────────────────────────────────────────────

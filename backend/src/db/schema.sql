@@ -200,6 +200,7 @@ CREATE TABLE IF NOT EXISTS order_items (
   crop_data     JSONB,                   -- { x, y, width, height, scale, rotation }
   image_quality TEXT CHECK (image_quality IN ('good','warn','blocked')),
   image_dpi     INTEGER,
+  is_upsell_item BOOLEAN NOT NULL DEFAULT false, -- "double your order" checkout upsell duplicate
   created_at    TIMESTAMPTZ DEFAULT NOW()
 );
 

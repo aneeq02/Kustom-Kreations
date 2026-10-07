@@ -8,6 +8,11 @@ import { priceOrder } from '../services/pricing';
 
 const router = Router();
 
+// Marks a duplicated "double your order" item so the admin analytics can
+// report upsell take-rate/revenue. Migrates existing databases.
+pool.query(`ALTER TABLE order_items ADD COLUMN IF NOT EXISTS is_upsell_item BOOLEAN NOT NULL DEFAULT false`)
+  .catch(err => console.error('order_items.is_upsell_item migration failed:', err));
+
 // ── Per-layout bulk discounts ───────────────────────────────────────────────
 // A "layout" here is 1x1 (single magnet) or an NxN tiled set. Each photo the
 // customer uploads is its own product/line item (quantity 1); the discount
@@ -26,6 +31,51 @@ function resolveLayoutSlug(productId: string): string {
 function tilesPerProduct(productId: string): number {
   const [r, c] = resolveLayoutSlug(productId).split('x').map(n => parseInt(n, 10));
   return (r > 0 && c > 0) ? r * c : 1;
+}
+
+// ── Checkout "double your order" upsell ─────────────────────────────────────
+// A one-click duplicate of the customer's whole set, offered at checkout.
+// The frontend flags cloned items with isUpsellSet; here we only honour that
+// flag — and apply the discount — for items that have a genuine full-price
+// twin (same product/image/quantity) elsewhere in the same cart, so the
+// discount can't be requested on items that were never actually doubled.
+// The discount % itself is admin-configurable (magnet_print_config row
+// 'upsell_discount_pct', edited via /admin/products/upsell-discount).
+async function loadUpsellDiscountPct(): Promise<number> {
+  const result = await pool.query(
+    `SELECT value FROM magnet_print_config WHERE key = 'upsell_discount_pct'`,
+  );
+  const pct = parseFloat(result.rows[0]?.value ?? '25');
+  return Number.isFinite(pct) ? pct : 25;
+}
+
+function upsellMatchKey(item: { productId: string; imageKey?: string; quantity: number }): string {
+  return `${item.productId}::${item.imageKey ?? ''}::${item.quantity}`;
+}
+
+function applyUpsellDiscount(
+  cartItems: Array<{ productId: string; imageKey?: string; quantity: number; isUpsellSet?: boolean }>,
+  enrichedItems: Array<{ itemTotal: number; isUpsellItem?: boolean }>,
+  discountPct: number,
+): number {
+  const originalCounts = new Map<string, number>();
+  cartItems.forEach(item => {
+    if (item.isUpsellSet) return;
+    const key = upsellMatchKey(item);
+    originalCounts.set(key, (originalCounts.get(key) ?? 0) + 1);
+  });
+
+  cartItems.forEach((item, idx) => {
+    if (!item.isUpsellSet) return;
+    const key = upsellMatchKey(item);
+    const available = originalCounts.get(key) ?? 0;
+    if (available <= 0) return; // no matching full-price twin — charge in full
+    originalCounts.set(key, available - 1);
+    enrichedItems[idx].itemTotal *= 1 - discountPct / 100;
+    enrichedItems[idx].isUpsellItem = true; // for order_items.is_upsell_item — powers the admin upsell analytics
+  });
+
+  return enrichedItems.reduce((s, i) => s + i.itemTotal, 0);
 }
 
 async function loadLayoutDiscounts(): Promise<Map<string, { qty: number | null; pct: number }>> {
@@ -151,6 +201,9 @@ router.post('/place-order', optionalAuth, async (req: AuthRequest, res: Response
     });
   }
 
+  // Checkout upsell — "double your order" duplicate set, admin-set discount
+  computedSubtotal = applyUpsellDiscount(cartItems, enrichedItems, await loadUpsellDiscountPct());
+
   // Promo, voucher, delivery and the £1 minimum — shared with the PayPal routes
   let priced;
   try {
@@ -211,14 +264,15 @@ router.post('/place-order', optionalAuth, async (req: AuthRequest, res: Response
     await pool.query(`
       INSERT INTO order_items
         (order_id, product_id, quantity, unit_price, discount_pct, total_price,
-         image_key, crop_data, image_quality, image_dpi)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+         image_key, crop_data, image_quality, image_dpi, is_upsell_item)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
     `, [
       order.id, item.productId, item.quantity,
       item.unitPrice.toFixed(2), item.discountPct,
       item.itemTotal.toFixed(2),
       item.imageKey, JSON.stringify(item.cropData ?? {}),
       item.imageQuality ?? 'good', item.imageDpi ?? 0,
+      item.isUpsellItem ?? false,
     ]);
   }
 
@@ -322,6 +376,9 @@ async function computeCart(body: {
       imageDpi:      item.imageDpi,
     });
   }
+
+  // Checkout upsell — "double your order" duplicate set, admin-set discount
+  computedSubtotal = applyUpsellDiscount(cartItems, enrichedItems, await loadUpsellDiscountPct());
 
   // Promo, voucher, delivery and the £1 minimum — throws a customer-friendly
   // message (surfaced by the routes) if a code/method is no longer valid
@@ -476,14 +533,15 @@ router.post('/paypal/capture', optionalAuth, async (req: AuthRequest, res: Respo
       await pool.query(`
         INSERT INTO order_items
           (order_id, product_id, quantity, unit_price, discount_pct, total_price,
-           image_key, crop_data, image_quality, image_dpi)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+           image_key, crop_data, image_quality, image_dpi, is_upsell_item)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
       `, [
         order.id, item.productId, item.quantity,
         item.unitPrice.toFixed(2), item.discountPct,
         item.itemTotal.toFixed(2),
         item.imageKey, JSON.stringify(item.cropData ?? {}),
         item.imageQuality ?? 'good', item.imageDpi ?? 0,
+        item.isUpsellItem ?? false,
       ]);
     }
 
@@ -577,13 +635,14 @@ if (process.env.PAYPAL_DEV_BYPASS === 'true' && process.env.NODE_ENV !== 'produc
         await pool.query(`
           INSERT INTO order_items
             (order_id, product_id, quantity, unit_price, discount_pct, total_price,
-             image_key, crop_data, image_quality, image_dpi)
-          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+             image_key, crop_data, image_quality, image_dpi, is_upsell_item)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
         `, [
           order.id, item.productId, item.quantity,
           item.unitPrice.toFixed(2), item.discountPct, item.itemTotal.toFixed(2),
           item.imageKey, JSON.stringify(item.cropData ?? {}),
           item.imageQuality ?? 'good', item.imageDpi ?? 0,
+          item.isUpsellItem ?? false,
         ]);
       }
 

@@ -159,12 +159,27 @@ export default function EditView({
             </div>
 
             {item.imageQuality !== 'good' && (
-              <div className="mt-4 flex items-center gap-2 text-xs text-navy bg-white/80 border border-border rounded-[3px] px-3 py-2">
-                <span className="w-4 h-4 rounded-full bg-navy text-white text-[10px] font-bold flex items-center justify-center shrink-0">!</span>
+              <div
+                role="alert"
+                className={`mt-4 flex items-center gap-2.5 rounded-lg border-2 px-3.5 py-2.5 text-sm font-medium ${
+                  item.imageQuality === 'blocked'
+                    ? 'bg-red-50 border-red-300 text-red-800'
+                    : 'bg-amber-50 border-amber-300 text-amber-900'
+                }`}
+              >
+                <svg
+                  className={`w-5 h-5 shrink-0 ${item.imageQuality === 'blocked' ? 'text-red-600' : 'text-amber-600'}`}
+                  viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M12 3.5 21.5 20.5 2.5 20.5Z" />
+                  <path d="M12 9.5v4.25" />
+                  <circle cx="12" cy="17" r="0.9" fill="currentColor" stroke="none" />
+                </svg>
                 {item.imageQuality === 'blocked'
                   ? 'Resolution too low to print sharply at this size.'
                   : 'Low resolution — may print slightly soft.'}
-                <button onClick={onReplace} className="underline font-medium cursor-pointer">Replace</button>
+                <button onClick={onReplace} className="underline font-semibold cursor-pointer">Replace</button>
               </div>
             )}
           </>

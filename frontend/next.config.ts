@@ -1,6 +1,15 @@
 import type { NextConfig } from 'next';
+import path from 'path';
 
 const nextConfig: NextConfig = {
+  // Pins the workspace root to this folder. Without it, Next.js walks up
+  // looking for a lockfile to guess the root and can land on an unrelated
+  // one outside the project (e.g. a stray package-lock.json in a home dir),
+  // which then throws off file tracing for dev (Turbopack) and prod builds.
+  outputFileTracingRoot: path.join(__dirname),
+  turbopack: {
+    root: path.join(__dirname),
+  },
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: '*.amazonaws.com' },

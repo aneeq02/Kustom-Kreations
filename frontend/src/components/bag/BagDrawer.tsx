@@ -14,7 +14,8 @@ const CheckoutPanel = dynamic(() => import('@/components/checkout/CheckoutPanel'
 });
 import { api } from '@/lib/api';
 import {
-  applyMinimumTotal, buildLayoutGroupQty, calcCartTotals, formatPrice, getItemBulkDiscountPct, type LayoutDiscountMap,
+  applyMinimumTotal, buildLayoutGroupQty, calcCartTotals, calcItemTotal, DEFAULT_UPSELL_DISCOUNT_PCT,
+  formatPrice, getItemBulkDiscountPct, type LayoutDiscountMap,
 } from '@/lib/pricing';
 import { buildLayoutDiscountMap, fetchMagnetConfig, type ApiTileLayout } from '@/lib/tiledProducts';
 import { itemGrid, itemNeedsReplace, itemSizeMm, magnetsInItem } from '@/lib/studio';
@@ -29,6 +30,7 @@ export default function BagDrawer() {
   const closeBag = useCallback(() => { setView('bag'); hideBag(); }, [hideBag]);
   const [layouts, setLayouts] = useState<ApiTileLayout[]>([]);
   const [layoutDiscounts, setLayoutDiscounts] = useState<LayoutDiscountMap | undefined>(undefined);
+  const [upsellDiscountPct, setUpsellDiscountPct] = useState(DEFAULT_UPSELL_DISCOUNT_PCT);
 
   const [codesOpen, setCodesOpen] = useState(false);
   const [promoCode, setPromoCode] = useState('');
@@ -44,6 +46,7 @@ export default function BagDrawer() {
       .then(cfg => {
         setLayouts(cfg.layouts);
         setLayoutDiscounts(buildLayoutDiscountMap(cfg.layouts));
+        setUpsellDiscountPct(cfg.printConfig.upsellDiscountPct);
       })
       .catch(() => {});
   }, [bagOpen, layouts.length]);
@@ -55,7 +58,7 @@ export default function BagDrawer() {
     return () => window.removeEventListener('keydown', onKey);
   }, [bagOpen, closeBag]);
 
-  const { subtotal } = calcCartTotals(items, layoutDiscounts);
+  const { subtotal } = calcCartTotals(items, layoutDiscounts, upsellDiscountPct);
   const groupQty = buildLayoutGroupQty(items);
   const rawDiscount = appliedDiscount ? parseFloat(appliedDiscount.discountAmount) : 0;
   const freeDelivery = !!appliedDiscount?.isFreeShipping;
@@ -238,8 +241,10 @@ export default function BagDrawer() {
                         const { rows, cols } = itemGrid(item);
                         const uploading = uploadingIds.has(item.id);
                         const pct = layoutDiscounts ? getItemBulkDiscountPct(item, groupQty, layoutDiscounts) : 0;
-                        const line = item.unitPrice * item.quantity * (1 - pct / 100);
+                        const line = calcItemTotal(item.unitPrice, item.quantity, pct, item.isUpsellSet, upsellDiscountPct);
+                        const hasLineDiscount = pct > 0 || item.isUpsellSet;
                         const needsReplace = itemNeedsReplace(item, uploading);
+                        const blocked = !item.imageKey || item.imageKey === 'pending' || item.imageQuality === 'blocked';
                         return (
                           <li key={item.id} className="py-4 first:pt-1">
                             <div className="flex gap-4">
@@ -250,6 +255,11 @@ export default function BagDrawer() {
                                 <div className="flex items-start justify-between gap-2">
                                   <p className="text-[15px] text-navy leading-snug">
                                     {rows * cols > 1 ? `${rows}×${cols} Magnet Set` : 'Photo Magnet'}, {itemSizeMm(item)}mm
+                                    {item.isUpsellSet && (
+                                      <span className="ml-1.5 inline-block rounded-full bg-brand/10 text-brand text-[11px] font-semibold px-1.5 py-0.5 align-middle">
+                                        Gift set
+                                      </span>
+                                    )}
                                   </p>
                                   <div className="flex items-center gap-2 shrink-0">
                                     <button
@@ -269,7 +279,7 @@ export default function BagDrawer() {
                                 <div className="mt-1 flex items-center gap-2 text-sm">
                                   <button onClick={() => editItem(item.id)} className="underline text-navy cursor-pointer">Edit</button>
                                   <span className="text-border">|</span>
-                                  {pct > 0 && <span className="text-text-secondary line-through">{formatPrice(item.unitPrice * item.quantity)}</span>}
+                                  {hasLineDiscount && <span className="text-text-secondary line-through">{formatPrice(item.unitPrice * item.quantity)}</span>}
                                   <span className="text-navy">{formatPrice(line)}</span>
                                   <button
                                     onClick={() => removeItem(item.id)}
@@ -284,15 +294,28 @@ export default function BagDrawer() {
                               <p className="mt-2 text-xs text-text-secondary">Uploading photo…</p>
                             )}
                             {needsReplace && (
-                              <div className="mt-2.5 flex items-center gap-2 bg-[#F6EFEC] rounded-[3px] px-2.5 py-1.5 text-xs text-navy">
-                                <span className="w-4 h-4 rounded-full bg-navy text-white text-[10px] font-bold flex items-center justify-center shrink-0">!</span>
+                              <div
+                                role="alert"
+                                className={`mt-2.5 flex items-center gap-2.5 rounded-lg border-2 px-3 py-2.5 text-sm font-medium ${
+                                  blocked ? 'bg-red-50 border-red-300 text-red-800' : 'bg-amber-50 border-amber-300 text-amber-900'
+                                }`}
+                              >
+                                <svg
+                                  className={`w-5 h-5 shrink-0 ${blocked ? 'text-red-600' : 'text-amber-600'}`}
+                                  viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                                  aria-hidden="true"
+                                >
+                                  <path d="M12 3.5 21.5 20.5 2.5 20.5Z" />
+                                  <path d="M12 9.5v4.25" />
+                                  <circle cx="12" cy="17" r="0.9" fill="currentColor" stroke="none" />
+                                </svg>
                                 <span className="flex-1">
                                   {!item.imageKey || item.imageKey === 'pending'
                                     ? 'Photo upload didn’t finish.'
                                     : item.imageQuality === 'blocked'
                                       ? 'Resolution too low for this size.'
                                       : 'Low resolution photo.'}{' '}
-                                  <button onClick={() => editItem(item.id)} className="underline font-medium cursor-pointer">Replace</button>
+                                  <button onClick={() => editItem(item.id)} className="underline font-semibold cursor-pointer">Replace</button>
                                 </span>
                               </div>
                             )}

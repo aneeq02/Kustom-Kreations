@@ -6,9 +6,10 @@ import { PayPalScriptProvider, PayPalButtons } from '@paypal/react-paypal-js';
 import { useCart } from '@/context/CartContext';
 import { useAuth } from '@/context/AuthContext';
 import BottomSheet from '@/components/configurator/BottomSheet';
+import UpsellOffer from '@/components/checkout/UpsellOffer';
 import { Input } from '@/components/ui/Input';
 import { api } from '@/lib/api';
-import { applyMinimumTotal, calcCartTotals, formatPrice, type LayoutDiscountMap } from '@/lib/pricing';
+import { applyMinimumTotal, calcCartTotals, DEFAULT_UPSELL_DISCOUNT_PCT, formatPrice, type LayoutDiscountMap } from '@/lib/pricing';
 import { buildLayoutDiscountMap, fetchMagnetConfig } from '@/lib/tiledProducts';
 import type { ShippingMethod, ShippingAddress } from '@/types';
 
@@ -50,10 +51,14 @@ export default function CheckoutPanel({ onBack, onComplete }: CheckoutPanelProps
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [layoutDiscounts, setLayoutDiscounts] = useState<LayoutDiscountMap | undefined>(undefined);
+  const [upsellDiscountPct, setUpsellDiscountPct] = useState(DEFAULT_UPSELL_DISCOUNT_PCT);
 
   useEffect(() => {
     fetchMagnetConfig()
-      .then(cfg => setLayoutDiscounts(buildLayoutDiscountMap(cfg.layouts)))
+      .then(cfg => {
+        setLayoutDiscounts(buildLayoutDiscountMap(cfg.layouts));
+        setUpsellDiscountPct(cfg.printConfig.upsellDiscountPct);
+      })
       .catch(() => {});
   }, []);
 
@@ -72,7 +77,7 @@ export default function CheckoutPanel({ onBack, onComplete }: CheckoutPanelProps
     ? JSON.parse(sessionStorage.getItem('kk_checkout_meta') || '{}')
     : {};
 
-  const { subtotal } = calcCartTotals(items, layoutDiscounts);
+  const { subtotal } = calcCartTotals(items, layoutDiscounts, upsellDiscountPct);
   const selectedMethod = shippingMethods.find(m => m.id === selectedMethodId);
   const shippingAmt = selectedMethod?.price ?? 0;
   // A free-delivery code waives delivery entirely — no method to choose
@@ -131,6 +136,7 @@ export default function CheckoutPanel({ onBack, onComplete }: CheckoutPanelProps
       tileConfig: i.tileConfig,
       imageQuality: i.imageQuality,
       imageDpi: i.imageDpi,
+      isUpsellSet: i.isUpsellSet ?? false,
     })),
     currency,
     guestEmail: guestEmail || null,
@@ -194,6 +200,8 @@ export default function CheckoutPanel({ onBack, onComplete }: CheckoutPanelProps
         )}
         <h2 className="font-body text-2xl font-semibold text-navy">Checkout</h2>
       </div>
+
+      <UpsellOffer layoutDiscounts={layoutDiscounts} upsellDiscountPct={upsellDiscountPct} />
 
       {/* Address row */}
       <button

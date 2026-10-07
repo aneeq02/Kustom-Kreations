@@ -66,9 +66,10 @@ async function ensureTables() {
 
   await pool.query(`
     INSERT INTO magnet_print_config (key, value, label)
-    VALUES ('target_dpi',   '300', 'Target print DPI'),
-           ('bleed_mm',     '3',   'Bleed in millimetres'),
-           ('safe_area_mm', '2',   'Safe area in millimetres')
+    VALUES ('target_dpi',          '300', 'Target print DPI'),
+           ('bleed_mm',            '3',   'Bleed in millimetres'),
+           ('safe_area_mm',        '2',   'Safe area in millimetres'),
+           ('upsell_discount_pct', '25',  'Checkout "double your order" discount %')
     ON CONFLICT (key) DO NOTHING
   `);
 

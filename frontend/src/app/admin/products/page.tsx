@@ -15,6 +15,61 @@ interface TileLayout {
   active: boolean; bulk_discount_pct: number; bulk_discount_qty: number | null;
 }
 
+function UpsellDiscountCard({ discountPct, onSave }: { discountPct: number; onSave: () => void }) {
+  const [pct, setPct]       = useState(discountPct.toString());
+  const [saving, setSaving] = useState(false);
+  const [saved, flash]      = useSaveFlag();
+  const [error, setError]   = useState('');
+
+  const save = async () => {
+    setSaving(true);
+    setError('');
+    try {
+      await adminPatch('/products/upsell-discount', { discountPct: parseFloat(pct) || 0 });
+      flash();
+      onSave();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to save');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const dirty = pct !== discountPct.toString();
+
+  return (
+    <div className="bg-white rounded-xl border border-border/80 p-4 sm:p-5 flex flex-col gap-4 max-w-sm">
+      <div>
+        <p className="font-semibold text-navy">Checkout &quot;double your order&quot; offer</p>
+        <p className="text-sm text-text-secondary mt-1">
+          The discount customers get on a second, identical set added at checkout.
+        </p>
+      </div>
+      <Field label="Discount" htmlFor="upsell-discount-pct">
+        <div className="flex gap-2">
+          <div className="flex-1">
+            <AffixInput
+              id="upsell-discount-pct"
+              suffix="%"
+              type="number"
+              inputMode="decimal"
+              step="1"
+              min="0"
+              max="100"
+              value={pct}
+              onChange={e => setPct(e.target.value)}
+            />
+          </div>
+          <Btn onClick={save} disabled={saving || (!dirty && !saved)} className="w-24">
+            {saving ? '…' : saved ? <Icon name="check" className="w-5 h-5" /> : 'Save'}
+          </Btn>
+        </div>
+      </Field>
+      {error && <Alert>{error}</Alert>}
+    </div>
+  );
+}
+
 function useSaveFlag() {
   const [saved, setSaved] = useState(false);
   const flash = () => { setSaved(true); setTimeout(() => setSaved(false), 2000); };
@@ -175,17 +230,20 @@ function LayoutCard({ layout, pricePerMagnet, onSave }: { layout: TileLayout; pr
 export default function AdminProductsPage() {
   const [sizes, setSizes]     = useState<MagnetSize[]>([]);
   const [layouts, setLayouts] = useState<TileLayout[]>([]);
+  const [upsellDiscountPct, setUpsellDiscountPct] = useState(25);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState('');
 
   const load = useCallback(async () => {
     try {
-      const [s, l] = await Promise.all([
+      const [s, l, u] = await Promise.all([
         adminGet<MagnetSize[]>('/products/sizes'),
         adminGet<TileLayout[]>('/products/layouts'),
+        adminGet<{ discountPct: number }>('/products/upsell-discount'),
       ]);
       setSizes(s);
       setLayouts(l);
+      setUpsellDiscountPct(u.discountPct);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to load');
     } finally {
@@ -224,6 +282,15 @@ export default function AdminProductsPage() {
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
             {visibleLayouts.map(l => <LayoutCard key={l.id} layout={l} pricePerMagnet={basePrice} onSave={load} />)}
           </div>
+        )}
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">Checkout upsell</h2>
+        {loading ? (
+          <div className="h-44 max-w-sm rounded-xl bg-white border border-border/70 animate-pulse" />
+        ) : (
+          <UpsellDiscountCard discountPct={upsellDiscountPct} onSave={load} />
         )}
       </section>
     </div>

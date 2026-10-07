@@ -6,6 +6,19 @@ import { adminGet } from '@/lib/adminApi';
 import { STATUS_LABEL, STATUS_TONE, gbp, shortDate } from '@/lib/adminStatus';
 import { Alert, EmptyState, Icon, PageHeader, Panel, StatusBadge } from '@/components/admin/ui';
 
+interface AnalyticsData {
+  days: number;
+  avgOrderValue: number;
+  avgMagnetsPerOrder: number;
+  popularQuantity: number | null;
+  popularQuantityOrders: number;
+  totalOrders: number;
+  upsellOrders: number;
+  upsellTakeRatePct: number;
+  upsellRevenue: number;
+  topOffer: { name: string; takeRatePct: number; revenue: number } | null;
+}
+
 interface DashboardData {
   totalOrders:     number;
   revenue:         number;
@@ -45,11 +58,24 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState('');
 
+  // Loads independently of the main dashboard stats above — a slower
+  // analytics query shouldn't hold up the page people check most often.
+  const [analytics, setAnalytics]               = useState<AnalyticsData | null>(null);
+  const [analyticsLoading, setAnalyticsLoading]  = useState(true);
+  const [analyticsError, setAnalyticsError]      = useState('');
+
   useEffect(() => {
     adminGet<DashboardData>('/dashboard')
       .then(setData)
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    adminGet<AnalyticsData>('/analytics?days=30')
+      .then(setAnalytics)
+      .catch(e => setAnalyticsError(e.message))
+      .finally(() => setAnalyticsLoading(false));
   }, []);
 
   if (loading) {
@@ -191,6 +217,82 @@ export default function AdminDashboard() {
           </Panel>
         </div>
       </div>
+
+      {/* Selling analytics */}
+      <section className="flex flex-col gap-3">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-text-secondary">Analytics</h2>
+          {analytics && <span className="text-xs text-text-secondary">Last {analytics.days} days</span>}
+        </div>
+
+        {analyticsError ? (
+          <Alert>{analyticsError}</Alert>
+        ) : analyticsLoading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+            {[0, 1, 2, 3, 4, 5].map(i => <div key={i} className="h-36 rounded-xl bg-white border border-border/70 animate-pulse" />)}
+          </div>
+        ) : analytics ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+            <Stat
+              icon="pound"
+              label="Average order value"
+              value={gbp(analytics.avgOrderValue)}
+            />
+            <Stat
+              icon="products"
+              label="Avg magnets per order"
+              value={analytics.avgMagnetsPerOrder.toFixed(1)}
+            />
+            <Stat
+              icon="gift"
+              label="Taking the second set"
+              value={`${Math.round(analytics.upsellTakeRatePct)}%`}
+              sub={analytics.totalOrders > 0 ? `${analytics.upsellOrders} of ${analytics.totalOrders} orders` : 'No orders yet'}
+            />
+            <Stat
+              icon="pound"
+              label="Revenue from upsells"
+              value={gbp(analytics.upsellRevenue)}
+              accent
+            />
+            <Stat
+              icon="products"
+              label="Most popular quantity"
+              value={analytics.popularQuantity !== null ? `${analytics.popularQuantity}` : '—'}
+              sub={
+                analytics.popularQuantity !== null
+                  ? `${analytics.popularQuantityOrders} order${analytics.popularQuantityOrders === 1 ? '' : 's'} · magnets`
+                  : 'Not enough data yet'
+              }
+            />
+
+            {/* Most successful offer — only one offer exists today (the checkout
+                "double your order" upsell), so this highlights its performance
+                rather than ranking it against alternatives that don't exist yet. */}
+            <div className="rounded-xl border border-brand/25 bg-brand-light/40 p-4 sm:p-5 flex flex-col gap-3 min-w-0">
+              <span className="w-9 h-9 rounded-lg flex items-center justify-center bg-white text-brand shrink-0">
+                <Icon name="gift" className="w-4.5 h-4.5" />
+              </span>
+              {analytics.topOffer ? (
+                <div className="min-w-0">
+                  <div className="font-heading text-2xl text-navy leading-tight truncate">{analytics.topOffer.name}</div>
+                  <div className="text-[13px] font-medium text-navy/70 mt-1.5">
+                    {Math.round(analytics.topOffer.takeRatePct)}% take rate · {gbp(analytics.topOffer.revenue)}
+                  </div>
+                  <div className="text-xs text-text-secondary mt-0.5">Most successful offer</div>
+                </div>
+              ) : (
+                <div className="min-w-0">
+                  <div className="font-heading text-xl text-navy leading-tight">No offers taken yet</div>
+                  <div className="text-xs text-text-secondary mt-1">
+                    Once customers accept the checkout upsell, its performance appears here.
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : null}
+      </section>
     </div>
   );
 }

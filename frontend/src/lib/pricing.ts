@@ -30,21 +30,33 @@ export function getItemBulkDiscountPct(
   return (groupQty.get(slug) ?? 0) >= cfg.qty ? cfg.pct : 0;
 }
 
-export function calcItemTotal(unitPrice: number, qty: number, discountPct: number): number {
-  return unitPrice * qty * (1 - discountPct / 100);
+// Checkout "double your order" upsell — admin-configurable extra discount on
+// a duplicated second set (magnet_print_config key upsell_discount_pct),
+// stacked on top of whatever bulk discount already applies. This default is
+// only a fallback for before that config has loaded.
+export const DEFAULT_UPSELL_DISCOUNT_PCT = 25;
+
+export function calcItemTotal(
+  unitPrice: number, qty: number, discountPct: number,
+  isUpsellSet = false, upsellDiscountPct = DEFAULT_UPSELL_DISCOUNT_PCT,
+): number {
+  const base = unitPrice * qty * (1 - discountPct / 100);
+  return isUpsellSet ? base * (1 - upsellDiscountPct / 100) : base;
 }
 
 // Without layout config loaded yet, no bulk discount is assumed — matches
 // what the checkout page falls back to before its own fetch resolves.
-export function calcCartTotals(items: CartItem[], layoutDiscounts?: LayoutDiscountMap) {
+export function calcCartTotals(
+  items: CartItem[], layoutDiscounts?: LayoutDiscountMap, upsellDiscountPct = DEFAULT_UPSELL_DISCOUNT_PCT,
+) {
   if (!layoutDiscounts) {
-    const subtotal = items.reduce((s, i) => s + i.unitPrice * i.quantity, 0);
+    const subtotal = items.reduce((s, i) => s + calcItemTotal(i.unitPrice, i.quantity, 0, i.isUpsellSet, upsellDiscountPct), 0);
     return { subtotal };
   }
   const groupQty = buildLayoutGroupQty(items);
   const subtotal = items.reduce((s, i) => {
     const pct = getItemBulkDiscountPct(i, groupQty, layoutDiscounts);
-    return s + calcItemTotal(i.unitPrice, i.quantity, pct);
+    return s + calcItemTotal(i.unitPrice, i.quantity, pct, i.isUpsellSet, upsellDiscountPct);
   }, 0);
   return { subtotal };
 }

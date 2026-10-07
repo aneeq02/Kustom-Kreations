@@ -606,6 +606,28 @@ router.patch('/products/sizes/:id', async (req: Request, res: Response) => {
   res.json(result.rows[0]);
 });
 
+// Checkout "double your order" upsell — discount % on the duplicated second
+// set. Stored alongside the other magnet print/pricing config (magnets.ts).
+router.get('/products/upsell-discount', async (_req, res) => {
+  const result = await pool.query(
+    `SELECT value FROM magnet_print_config WHERE key = 'upsell_discount_pct'`,
+  );
+  res.json({ discountPct: parseFloat(result.rows[0]?.value ?? '25') });
+});
+
+router.patch('/products/upsell-discount', async (req: Request, res: Response) => {
+  const { discountPct } = req.body;
+  const pct = Number(discountPct);
+  if (!Number.isFinite(pct) || pct < 0 || pct > 100) {
+    return res.status(400).json({ error: 'discountPct must be a number between 0 and 100' });
+  }
+  await pool.query(
+    `UPDATE magnet_print_config SET value = $1 WHERE key = 'upsell_discount_pct'`,
+    [String(pct)],
+  );
+  res.json({ discountPct: pct });
+});
+
 router.get('/products/layouts', async (_req, res) => {
   const result = await pool.query(
     `SELECT id, slug, label, rows, cols, active, bulk_discount_pct, bulk_discount_qty FROM tile_layouts ORDER BY sort_order`,
@@ -666,6 +688,85 @@ router.get('/reports/sales', async (req: Request, res: Response) => {
     totalRevenue: parseFloat(totalRes.rows[0].revenue),
     avgOrder:     parseFloat(totalRes.rows[0].avg_order),
   });
+});
+
+// ── Selling analytics (dashboard "Analytics" section) ──────────────────────────
+// Physical magnet count per line item = quantity (how many of that set) ×
+// rows × cols (magnets per set, stored on crop_data for tiled layouts; 1×1
+// for a single magnet or any legacy row that predates that field).
+const MAGNET_COUNT_SQL =
+  `oi.quantity * COALESCE((oi.crop_data->>'rows')::int, 1) * COALESCE((oi.crop_data->>'cols')::int, 1)`;
+
+router.get('/analytics', async (req: Request, res: Response) => {
+  const days = Math.min(parseInt((req.query.days as string) || '30'), 365);
+
+  try {
+    const [orderRes, magnetRes, upsellRes] = await Promise.all([
+      pool.query(
+        `SELECT COUNT(*) AS total_orders, COALESCE(AVG(total), 0) AS avg_order
+         FROM orders
+         WHERE created_at >= NOW() - ($1 || ' days')::INTERVAL
+           AND status NOT IN ('cancelled','refunded')
+           AND currency = 'GBP'`,
+        [days],
+      ),
+      pool.query(
+        `SELECT magnets, COUNT(*) AS freq FROM (
+           SELECT oi.order_id, SUM(${MAGNET_COUNT_SQL}) AS magnets
+           FROM order_items oi
+           JOIN orders o ON o.id = oi.order_id
+           WHERE o.created_at >= NOW() - ($1 || ' days')::INTERVAL
+             AND o.status NOT IN ('cancelled','refunded')
+           GROUP BY oi.order_id
+         ) order_magnets
+         GROUP BY magnets
+         ORDER BY freq DESC, magnets ASC`,
+        [days],
+      ),
+      pool.query(
+        `SELECT
+           COUNT(DISTINCT o.id) AS total_orders,
+           COUNT(DISTINCT o.id) FILTER (WHERE oi.is_upsell_item) AS upsell_orders,
+           COALESCE(SUM(oi.total_price) FILTER (WHERE oi.is_upsell_item), 0) AS upsell_revenue
+         FROM orders o
+         LEFT JOIN order_items oi ON oi.order_id = o.id
+         WHERE o.created_at >= NOW() - ($1 || ' days')::INTERVAL
+           AND o.status NOT IN ('cancelled','refunded')`,
+        [days],
+      ),
+    ]);
+
+    const magnetRows = magnetRes.rows.map(r => ({ magnets: Number(r.magnets), freq: parseInt(r.freq) }));
+    const orderCountForAvg = magnetRows.reduce((s, r) => s + r.freq, 0);
+    const avgMagnetsPerOrder = orderCountForAvg > 0
+      ? magnetRows.reduce((s, r) => s + r.magnets * r.freq, 0) / orderCountForAvg
+      : 0;
+    const popular = magnetRows[0] ?? null;
+
+    const totalOrders   = parseInt(upsellRes.rows[0].total_orders);
+    const upsellOrders  = parseInt(upsellRes.rows[0].upsell_orders);
+    const upsellRevenue = parseFloat(upsellRes.rows[0].upsell_revenue);
+    const upsellTakeRatePct = totalOrders > 0 ? (upsellOrders / totalOrders) * 100 : 0;
+
+    res.json({
+      days,
+      avgOrderValue:      parseFloat(orderRes.rows[0].avg_order),
+      avgMagnetsPerOrder,
+      popularQuantity:       popular?.magnets ?? null,
+      popularQuantityOrders: popular?.freq ?? 0,
+      totalOrders,
+      upsellOrders,
+      upsellTakeRatePct,
+      upsellRevenue,
+      // Single-offer system today ("double your order" at checkout) — this
+      // mirrors the take-rate/revenue above rather than ranking across
+      // several named offers, since only one currently exists.
+      topOffer: upsellOrders > 0 ? { name: 'Double your order', takeRatePct: upsellTakeRatePct, revenue: upsellRevenue } : null,
+    });
+  } catch (err) {
+    console.error('Analytics query failed:', err);
+    res.status(503).json({ error: 'Database unavailable', detail: err instanceof Error ? err.message : String(err) });
+  }
 });
 
 export default router;

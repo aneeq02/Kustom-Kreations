@@ -17,7 +17,9 @@ type CartAction =
   | { type: 'REMOVE'; id: string }
   | { type: 'UPDATE_QTY'; id: string; quantity: number }
   | { type: 'CLEAR' }
-  | { type: 'HYDRATE'; state: CartState };
+  | { type: 'HYDRATE'; state: CartState }
+  | { type: 'DUPLICATE_SET' }
+  | { type: 'REMOVE_UPSELL_SET' };
 
 function cartReducer(state: CartState, action: CartAction): CartState {
   switch (action.type) {
@@ -33,6 +35,16 @@ function cartReducer(state: CartState, action: CartAction): CartState {
       return { ...state, items: [] };
     case 'HYDRATE':
       return action.state;
+    case 'DUPLICATE_SET': {
+      // "Double your order" checkout upsell — clone every original item
+      // (same imageKey/cropData, no re-upload) as a discounted second set.
+      // Re-running this replaces any previous duplicate set rather than stacking.
+      const originals = state.items.filter(i => !i.isUpsellSet);
+      const clones = originals.map(i => ({ ...i, id: uuidv4(), isUpsellSet: true as const }));
+      return { ...state, items: [...originals, ...clones] };
+    }
+    case 'REMOVE_UPSELL_SET':
+      return { ...state, items: state.items.filter(i => !i.isUpsellSet) };
     default:
       return state;
   }
@@ -46,6 +58,10 @@ interface CartContextValue {
   removeItem: (id: string) => void;
   updateQuantity: (id: string, quantity: number) => void;
   clearCart: () => void;
+  // "Double your order" checkout upsell
+  hasUpsellSet: boolean;
+  duplicateSet: () => void;
+  removeUpsellSet: () => void;
   sessionId: string;
   hydrated: boolean;
   // Photo uploads still in flight this session. Not persisted — after a
@@ -99,6 +115,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'UPDATE_QTY', id, quantity: Math.max(1, quantity) });
   }, []);
   const clearCart = useCallback(() => dispatch({ type: 'CLEAR' }), []);
+  const duplicateSet = useCallback(() => dispatch({ type: 'DUPLICATE_SET' }), []);
+  const removeUpsellSet = useCallback(() => dispatch({ type: 'REMOVE_UPSELL_SET' }), []);
   const setUploading = useCallback((id: string, uploading: boolean) => {
     setUploadingIds(prev => {
       const next = new Set(prev);
@@ -114,6 +132,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       items: state.items,
       totalItems: state.items.reduce((s, i) => s + i.quantity, 0),
       addItem, updateItem, removeItem, updateQuantity, clearCart,
+      hasUpsellSet: state.items.some(i => i.isUpsellSet),
+      duplicateSet, removeUpsellSet,
       sessionId: state.sessionId,
       hydrated,
       uploadingIds, setUploading,
