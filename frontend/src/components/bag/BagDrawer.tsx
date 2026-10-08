@@ -244,7 +244,6 @@ export default function BagDrawer() {
                         const line = calcItemTotal(item.unitPrice, item.quantity, pct, item.isUpsellSet, upsellDiscountPct);
                         const hasLineDiscount = pct > 0 || item.isUpsellSet;
                         const needsReplace = itemNeedsReplace(item, uploading);
-                        const blocked = !item.imageKey || item.imageKey === 'pending' || item.imageQuality === 'blocked';
                         return (
                           <li key={item.id} className="py-4 first:pt-1">
                             <div className="flex gap-4">
@@ -296,12 +295,10 @@ export default function BagDrawer() {
                             {needsReplace && (
                               <div
                                 role="alert"
-                                className={`mt-2.5 flex items-center gap-2.5 rounded-lg border-2 px-3 py-2.5 text-sm font-medium ${
-                                  blocked ? 'bg-red-50 border-red-300 text-red-800' : 'bg-amber-50 border-amber-300 text-amber-900'
-                                }`}
+                                className="mt-2.5 flex items-center gap-2.5 rounded-lg border-2 px-3 py-2.5 text-sm font-medium bg-red-50 border-red-300 text-red-800"
                               >
                                 <svg
-                                  className={`w-5 h-5 shrink-0 ${blocked ? 'text-red-600' : 'text-amber-600'}`}
+                                  className="w-5 h-5 shrink-0 text-red-600"
                                   viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
                                   aria-hidden="true"
                                 >

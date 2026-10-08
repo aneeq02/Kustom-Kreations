@@ -161,14 +161,10 @@ export default function EditView({
             {item.imageQuality !== 'good' && (
               <div
                 role="alert"
-                className={`mt-4 flex items-center gap-2.5 rounded-lg border-2 px-3.5 py-2.5 text-sm font-medium ${
-                  item.imageQuality === 'blocked'
-                    ? 'bg-red-50 border-red-300 text-red-800'
-                    : 'bg-amber-50 border-amber-300 text-amber-900'
-                }`}
+                className="mt-4 flex items-center gap-2.5 rounded-lg border-2 px-3.5 py-2.5 text-sm font-medium bg-red-50 border-red-300 text-red-800"
               >
                 <svg
-                  className={`w-5 h-5 shrink-0 ${item.imageQuality === 'blocked' ? 'text-red-600' : 'text-amber-600'}`}
+                  className="w-5 h-5 shrink-0 text-red-600"
                   viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
                   aria-hidden="true"
                 >
