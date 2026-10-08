@@ -16,7 +16,7 @@ const STEPS = [
   },
   {
     title: 'Delivered to your door',
-    body: 'Printed, packed with care and posted to you. Every order arrives ready to stick up — or to give as a present.',
+    body: 'Printed, carefully packed and posted straight to you. Your magnets arrive ready to use, perfect for your fridge, or as a unique little gift.',
   },
 ];
 
@@ -174,7 +174,7 @@ function StackedSteps() {
           </motion.li>
         ))}
       </ol>
-      <Link href="/configure" className="mt-14 flex items-center justify-center h-14 rounded-lg bg-brand text-white font-semibold hover:bg-brand-dark transition-colors">
+      <Link id="how-it-works-cta" href="/configure" className="mt-14 flex items-center justify-center h-14 rounded-lg bg-brand text-white font-semibold hover:bg-brand-dark transition-colors">
         Start creating — it’s free
       </Link>
     </div>
@@ -197,16 +197,23 @@ function PinnedStory() {
 
   return (
     <div ref={ref} className="relative h-[300vh]">
-      <div className="sticky top-[72px] h-[calc(100vh-72px)] max-w-6xl mx-auto px-10 grid grid-cols-2 gap-20 items-center">
+      {/* min-h is a floor under the viewport-relative height: on a short window
+          h-[calc(100vh-72px)] alone would reserve less space than the header +
+          3 steps + CTA actually need, and the overflow would bleed into
+          whatever section follows. With the floor, the reserved space always
+          covers the real content, so the next section can never start too
+          soon — on a short window this section just takes a little more
+          scrolling to clear, rather than visually overlapping. */}
+      <div className="sticky top-[72px] h-[calc(100vh-72px)] min-h-[620px] max-w-6xl mx-auto px-10 grid grid-cols-2 gap-20 items-center">
         <div>
           {HEADER}
-          <ol className="mt-12 flex flex-col gap-2">
+          <ol className="mt-8 flex flex-col gap-1.5">
             {STEPS.map((s, i) => (
               <li key={s.title} className="flex gap-5">
                 <div className="flex flex-col items-center">
                   <StepNumber n={i + 1} active={i <= active} />
                   {i < STEPS.length - 1 && (
-                    <span className="w-px flex-1 min-h-6 bg-border relative overflow-hidden my-1">
+                    <span className="w-px flex-1 min-h-5 bg-border relative overflow-hidden my-1">
                       {/* scaleY (a transform) instead of animating height */}
                       <motion.span
                         className="absolute inset-0 bg-brand origin-top"
@@ -217,19 +224,23 @@ function PinnedStory() {
                     </span>
                   )}
                 </div>
-                <div className={`pb-6 transition-opacity duration-300 ${i === active ? 'opacity-100' : 'opacity-40'}`}>
+                <div className={`pb-4 transition-opacity duration-300 ${i === active ? 'opacity-100' : 'opacity-40'}`}>
                   <h3 className="font-heading text-3xl text-navy leading-tight">{s.title}</h3>
-                  <p
-                    className={`text-text-secondary leading-relaxed mt-2 max-w-md transition-opacity duration-300 ${i === active ? 'opacity-100' : 'opacity-0'}`}
-                    aria-hidden={i !== active}
-                  >
-                    {s.body}
-                  </p>
+                  {/* Only the active step's description is rendered — an inactive one
+                      is fully invisible (opacity-0) anyway, so keeping it in the DOM
+                      bought no visual benefit, only reserved layout height. With all
+                      three always rendered, a longer description (like step 3's) grew
+                      the list's total height and bled into whatever follows this
+                      section. Rendering just the active one keeps the list's height
+                      constant and sized to a single description, not the sum of three. */}
+                  {i === active && (
+                    <p className="text-text-secondary leading-relaxed mt-1.5 max-w-md">{s.body}</p>
+                  )}
                 </div>
               </li>
             ))}
           </ol>
-          <Link href="/configure" className="mt-6 inline-flex items-center h-13 px-8 rounded-lg bg-brand text-white font-semibold hover:bg-brand-dark transition-colors">
+          <Link id="how-it-works-cta" href="/configure" className="mt-4 inline-flex items-center h-12 px-8 rounded-lg bg-brand text-white font-semibold hover:bg-brand-dark transition-colors">
             Start creating — it’s free
           </Link>
         </div>

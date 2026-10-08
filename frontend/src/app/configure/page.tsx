@@ -429,6 +429,29 @@ function Studio() {
                       <span className="text-xs text-text-secondary">
                         {label}{item.quantity > 1 && <> · ×{item.quantity}</>}
                       </span>
+                      {itemNeedsReplace(item, uploading) && (
+                        <div
+                          role="alert"
+                          className="w-full max-w-[200px] flex items-center gap-1.5 rounded-lg border-2 border-red-300 bg-red-50 px-2.5 py-2 text-xs font-medium text-red-800"
+                        >
+                          <svg
+                            className="w-4 h-4 shrink-0 text-red-600"
+                            viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                            aria-hidden="true"
+                          >
+                            <path d="M12 3.5 21.5 20.5 2.5 20.5Z" />
+                            <path d="M12 9.5v4.25" />
+                            <circle cx="12" cy="17" r="0.9" fill="currentColor" stroke="none" />
+                          </svg>
+                          <span>
+                            {!item.imageKey || item.imageKey === 'pending'
+                              ? 'Photo upload didn’t finish.'
+                              : item.imageQuality === 'blocked'
+                                ? 'Resolution too low for this size.'
+                                : 'Low resolution photo.'}
+                          </span>
+                        </div>
+                      )}
                       <button
                         onClick={() => setEditingId(item.id)}
                         className="-mt-1 inline-flex items-center gap-1.5 h-9 px-4 rounded-full border border-border bg-white text-[13px] font-medium text-navy hover:border-brand hover:text-brand transition-colors cursor-pointer"

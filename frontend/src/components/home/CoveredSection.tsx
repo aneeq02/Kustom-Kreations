@@ -54,7 +54,7 @@ function GuaranteeArt() {
 }
 
 const CARDS = [
-  { Art: ShippingArt, title: 'Fast & Free Shipping', body: 'Made to order, packed with care' },
+  { Art: ShippingArt, title: 'Fast & Free Shipping', body: 'Made to order, packed with care', note: 'On orders over £25' },
   { Art: CustomArt, title: 'Custom Made for You', body: 'Your designs, your magnets' },
   { Art: GuaranteeArt, title: 'Satisfaction Guaranteed', body: "Love your magnets or we'll make it right" },
 ];
@@ -83,7 +83,7 @@ export default function CoveredSection() {
         </motion.h2>
 
         <div className="grid sm:grid-cols-3 gap-4 md:gap-6">
-          {CARDS.map(({ Art, title, body }, i) => (
+          {CARDS.map(({ Art, title, body, note }, i) => (
             <motion.div
               key={title}
               initial={{ opacity: 0, y: 18 }}
@@ -97,6 +97,7 @@ export default function CoveredSection() {
               </div>
               <h3 className="mt-5 font-body text-lg font-semibold text-navy">{title}</h3>
               <p className="mt-1 text-sm text-text-secondary">{body}</p>
+              {note && <p className="mt-0.5 text-sm text-brand font-medium">{note}</p>}
             </motion.div>
           ))}
         </div>

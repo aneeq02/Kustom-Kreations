@@ -12,14 +12,18 @@ const HIDE_NEAR_END = 900;
 // the next step is always one tap away while scrolling.
 export default function FloatingUpload() {
   const reduce = useReducedMotion();
-  const [visible, setVisible] = useState(false);
+  const [nearEnd, setNearEnd] = useState(false);
+  // True while the "How it works" section's own equivalent CTA
+  // (#how-it-works-cta) is on screen — no need for this floating copy to
+  // hover on top of it too.
+  const [overOwnCta, setOverOwnCta] = useState(false);
+  const visible = !nearEnd && !overOwnCta;
 
   useEffect(() => {
     let frame = 0;
     const update = () => {
       frame = 0;
-      const nearEnd = window.innerHeight + window.scrollY > document.documentElement.scrollHeight - HIDE_NEAR_END;
-      setVisible(!nearEnd);
+      setNearEnd(window.innerHeight + window.scrollY > document.documentElement.scrollHeight - HIDE_NEAR_END);
     };
     const onScroll = () => { if (!frame) frame = requestAnimationFrame(update); };
     // Short delay so it arrives after the hero's own entrance animation
@@ -33,6 +37,14 @@ export default function FloatingUpload() {
       window.removeEventListener('resize', onScroll);
     };
   }, [reduce]);
+
+  useEffect(() => {
+    const target = document.getElementById('how-it-works-cta');
+    if (!target) return;
+    const observer = new IntersectionObserver(([entry]) => setOverOwnCta(entry.isIntersecting));
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, []);
 
   return (
     <AnimatePresence>

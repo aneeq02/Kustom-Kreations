@@ -78,7 +78,7 @@ export default function AddSheet({
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-3">
-              {single && <div className="col-span-2">{card(single, true)}</div>}
+              {single && <div className="col-span-2 flex justify-center">{card(single, true)}</div>}
               {sets.map(l => card(l, false))}
             </div>
           )}

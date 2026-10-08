@@ -105,7 +105,7 @@ export default function EditView({
       aria-modal="true"
       aria-label="Edit magnet"
     >
-      <div className="flex-1 min-h-0 overflow-y-auto flex flex-col items-center justify-center px-4 pt-16 pb-6">
+      <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar flex flex-col items-center justify-center px-4 pt-16 pb-6">
         {!photoUrl ? (
           <div className="max-w-xs text-center">
             <p className="text-navy font-medium mb-2">This photo needs to be uploaded again</p>
@@ -173,7 +173,7 @@ export default function EditView({
                   <circle cx="12" cy="17" r="0.9" fill="currentColor" stroke="none" />
                 </svg>
                 {item.imageQuality === 'blocked'
-                  ? 'Resolution too low to print sharply at this size.'
+                  ? 'Please replace image as the resolution is too low.'
                   : 'Low resolution — may print slightly soft.'}
                 <button onClick={onReplace} className="underline font-semibold cursor-pointer">Replace</button>
               </div>

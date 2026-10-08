@@ -244,7 +244,7 @@ export default function Hero() {
         {/* B: copy + CTA */}
         <div className="lg:col-start-1 lg:row-start-2 lg:self-start">
           <motion.p {...fadeUp(0.55)} className="text-white/75 text-base sm:text-lg leading-relaxed max-w-xl mb-4">
-            Give your kitchen a personal touch with beautiful photo magnets made from the moments you love most. Whether it&rsquo;s a favourite family photo, a special celebration, a memorable holiday or your four-legged friend&rsquo;s funniest face, turn those precious memories into something you can see every day.
+            Give your home a personal touch with beautiful photo magnets made from the moments you love most. Whether it&rsquo;s a favourite family photo, a special celebration, a memorable holiday or your four-legged friend&rsquo;s funniest face, turn those precious memories into something you can see every day.
           </motion.p>
           <motion.p {...fadeUp(0.65)} className="text-white/75 text-base sm:text-lg leading-relaxed max-w-xl mb-9">
             Perfect for your own fridge or as a thoughtful gift, personalised photo magnets are a lovely way to keep special moments close. Forget the usual holiday souvenir, create a unique keepsake from a photo that means something to you and enjoy that memory every time you walk into the kitchen.
